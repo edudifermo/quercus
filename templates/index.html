@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quercus - CRUDs Maestros Base</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Quercus · CRUDs maestros base</h1>
+    <div class="toolbar">
+      <label>Company ID <input id="companyId" type="number" value="1" min="1"></label>
+      <label>Rol
+        <select id="role">
+          <option value="admin">admin</option>
+          <option value="editor">editor</option>
+          <option value="viewer">viewer</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <section id="moduleSelector"></section>
+    <section id="controls"></section>
+    <section id="formSection"></section>
+    <section id="tableSection"></section>
+    <section>
+      <h3>Auditoría (últimos 200 eventos)</h3>
+      <pre id="audit"></pre>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

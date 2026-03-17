@@ -1,0 +1,12 @@
+body { font-family: Arial, sans-serif; margin: 1rem 2rem; background:#f5f7fb; }
+header { display:flex; justify-content:space-between; align-items:center; }
+.toolbar { display:flex; gap:1rem; }
+button { cursor:pointer; }
+.module-tabs { display:flex; gap:.5rem; flex-wrap:wrap; margin:1rem 0; }
+.module-tabs button.active { background:#0a66c2; color:#fff; }
+table { width:100%; border-collapse: collapse; background:#fff; }
+th, td { border:1px solid #ddd; padding:.5rem; }
+form { background:#fff; padding:1rem; margin:.75rem 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.5rem; }
+input,select,textarea { width:100%; }
+.row-actions{ display:flex; gap:.25rem; }
+pre { max-height:200px; overflow:auto; background:#111; color:#a8ff60; padding:.5rem; }
