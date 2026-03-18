@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quercus | Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">Quercus</div>
+        <nav class="nav-modules">
+          <a href="#dashboard" class="nav-link active">Dashboard</a>
+          <a href="#proveedores" class="nav-link">Proveedores</a>
+          <a href="#clientes" class="nav-link">Clientes</a>
+          <a href="#items" class="nav-link">Items</a>
+          <a href="#compras" class="nav-link">Compras</a>
+          <a href="#tesoreria" class="nav-link">Tesorería</a>
+        </nav>
+      </aside>
+
+      <main class="main-shell">
+        <header class="topbar">
+          <button class="menu-toggle" id="menuToggle">☰</button>
+          <div>
+            <h1 class="title">Dashboard operativo</h1>
+            <p class="subtitle">Vista general por empresa activa</p>
+          </div>
+          <div class="controls">
+            <label for="companySelect">Empresa</label>
+            <select id="companySelect"></select>
+            <label class="consolidated-toggle">
+              <input type="checkbox" id="consolidatedToggle" /> Consolidado
+            </label>
+          </div>
+        </header>
+
+        <section class="context-row">
+          <span id="contextBadge" class="badge">Cargando contexto...</span>
+          <span id="userBadge" class="badge muted"></span>
+        </section>
+
+        <section class="cards" id="metricsCards"></section>
+
+        <section class="table-block" id="consolidatedBlock" hidden>
+          <h2>Detalle por empresa</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Proveedores</th>
+                <th>Clientes</th>
+                <th>Items</th>
+                <th>Compras</th>
+              </tr>
+            </thead>
+            <tbody id="companyRows"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
