@@ -8,6 +8,8 @@ datasource db {
 }
 
 <<<<<<< ours
+<<<<<<< ours
+<<<<<<< ours
 enum CurrencyCode {
   ARS
   USD
@@ -690,5 +692,50 @@ model StockMovement {
 
   @@index([productId])
   @@map("stock_movements")
+>>>>>>> theirs
+=======
+=======
+>>>>>>> theirs
+enum MembershipRole {
+  OWNER
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+model Company {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  name        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  role      MembershipRole
+  createdAt DateTime       @default(now())
+  companyId String
+  userId    String
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@index([userId])
+<<<<<<< ours
+>>>>>>> theirs
+=======
 >>>>>>> theirs
 }

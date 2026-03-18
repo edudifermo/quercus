@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: quercus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-quercus}
+      POSTGRES_USER: ${POSTGRES_USER:-quercus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quercus}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - quercus-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  quercus-postgres-data:
