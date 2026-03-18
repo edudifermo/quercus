@@ -1,3 +1,4 @@
+<<<<<<< ours
 # dependencies
 /node_modules
 
@@ -24,3 +25,8 @@ pnpm-debug.log*
 
 # misc
 .DS_Store
+=======
+__pycache__/
+*.pyc
+quercus.db
+>>>>>>> theirs
