@@ -2,10 +2,34 @@ import { MembershipRole } from "@prisma/client";
 import { prisma } from "@/infrastructure/database/prisma";
 
 const ROLE_PERMISSIONS: Record<MembershipRole, string[]> = {
-  OWNER: ["production.read", "production.write", "production.close", "reports.read"],
-  PLANNER: ["production.read", "production.write", "reports.read"],
-  OPERATOR: ["production.read", "production.write", "reports.read"],
-  VIEWER: ["production.read", "reports.read"],
+  OWNER: [
+    "production.read",
+    "production.write",
+    "production.close",
+    "treasury.read",
+    "treasury.write",
+    "treasury.pay",
+    "attachments.write",
+    "reports.read",
+  ],
+  PLANNER: [
+    "production.read",
+    "production.write",
+    "treasury.read",
+    "treasury.write",
+    "treasury.pay",
+    "attachments.write",
+    "reports.read",
+  ],
+  OPERATOR: [
+    "production.read",
+    "production.write",
+    "treasury.read",
+    "treasury.write",
+    "attachments.write",
+    "reports.read",
+  ],
+  VIEWER: ["production.read", "treasury.read", "reports.read"],
 };
 
 export type AppContext = {

@@ -33,18 +33,99 @@ enum StockMovementType {
   ADJUSTMENT
 }
 
+enum CurrencyCode {
+  ARS
+  USD
+  EUR
+}
+
+enum CashMovementType {
+  OPENING
+  COLLECTION
+  PAYMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+}
+
+enum BankMovementType {
+  OPENING
+  DEPOSIT
+  PAYMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  FEE
+  INTEREST
+  ADJUSTMENT
+}
+
+enum TreasuryMovementDirection {
+  IN
+  OUT
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  CARD
+  OTHER
+}
+
+enum SupplierDocumentStatus {
+  OPEN
+  PARTIAL
+  PAID
+}
+
+enum SupplierLedgerEntryType {
+  INVOICE
+  PAYMENT
+  CREDIT_NOTE
+  DEBIT_NOTE
+  ADJUSTMENT
+}
+
+enum PaymentStatus {
+  POSTED
+  VOID
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+  SUPABASE
+}
+
+enum AttachmentOwnerType {
+  SUPPLIER_PAYMENT
+  SUPPLIER_INVOICE
+  CASH_MOVEMENT
+  BANK_MOVEMENT
+  SUPPLIER_LEDGER_ENTRY
+}
+
 model Company {
-  id               String            @id @default(cuid())
-  name             String
-  slug             String            @unique
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  memberships      Membership[]
-  warehouses       Warehouse[]
-  items            Item[]
-  boms             Bom[]
-  productionOrders ProductionOrder[]
-  stockMovements   StockMovement[]
+  id                    String                 @id @default(cuid())
+  name                  String
+  slug                  String                 @unique
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  memberships           Membership[]
+  warehouses            Warehouse[]
+  items                 Item[]
+  boms                  Bom[]
+  productionOrders      ProductionOrder[]
+  stockMovements        StockMovement[]
+  suppliers             Supplier[]
+  cashBoxes             CashBox[]
+  cashMovements         CashMovement[]
+  bankAccounts          BankAccount[]
+  bankMovements         BankMovement[]
+  supplierInvoices      SupplierInvoice[]
+  supplierPayments      SupplierPayment[]
+  supplierLedgerEntries SupplierLedgerEntry[]
+  attachments           FileAttachment[]
 }
 
 model User {
@@ -66,8 +147,8 @@ model Membership {
   role      MembershipRole
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
-  company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, userId])
 }
@@ -87,41 +168,41 @@ model Warehouse {
 }
 
 model Item {
-  id                 String                  @id @default(cuid())
-  companyId          String
-  sku                String
-  name               String
-  uom                String
-  itemType           ItemType
-  isManufacturable   Boolean                 @default(false)
-  standardCost       Decimal                 @db.Decimal(14, 2)
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bomHeaders         Bom[]                   @relation("bom_finished_item")
-  bomComponents      BomLine[]               @relation("bom_component_item")
-  orderItems         ProductionOrder[]
-  requirements       ProductionRequirement[]
-  consumptions       ProductionConsumption[]
-  stockMovements     StockMovement[]
+  id               String                   @id @default(cuid())
+  companyId        String
+  sku              String
+  name             String
+  uom              String
+  itemType         ItemType
+  isManufacturable Boolean                  @default(false)
+  standardCost     Decimal                  @db.Decimal(14, 2)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bomHeaders       Bom[]                    @relation("bom_finished_item")
+  bomComponents    BomLine[]                @relation("bom_component_item")
+  orderItems       ProductionOrder[]
+  requirements     ProductionRequirement[]
+  consumptions     ProductionConsumption[]
+  stockMovements   StockMovement[]
 
   @@unique([companyId, sku])
 }
 
 model Bom {
-  id             String      @id @default(cuid())
-  companyId      String
-  finishedItemId String
-  code           String
-  version        Int         @default(1)
-  baseQuantity   Decimal     @db.Decimal(14, 3)
-  notes          String?
-  isActive       Boolean     @default(true)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  finishedItem   Item        @relation("bom_finished_item", fields: [finishedItemId], references: [id], onDelete: Cascade)
-  lines          BomLine[]
+  id               String            @id @default(cuid())
+  companyId        String
+  finishedItemId   String
+  code             String
+  version          Int               @default(1)
+  baseQuantity     Decimal           @db.Decimal(14, 3)
+  notes            String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  finishedItem     Item              @relation("bom_finished_item", fields: [finishedItemId], references: [id], onDelete: Cascade)
+  lines            BomLine[]
   productionOrders ProductionOrder[]
 
   @@unique([companyId, code])
@@ -140,30 +221,30 @@ model BomLine {
 }
 
 model ProductionOrder {
-  id                String                    @id @default(cuid())
+  id                String                 @id @default(cuid())
   companyId         String
   code              String
   bomId             String
   finishedItemId    String
   warehouseId       String
-  status            ProductionOrderStatus     @default(DRAFT)
-  plannedQuantity   Decimal                   @db.Decimal(14, 3)
-  expectedOutputQty Decimal                   @db.Decimal(14, 3)
-  producedQuantity  Decimal                   @default(0) @db.Decimal(14, 3)
-  scrapQuantity     Decimal                   @default(0) @db.Decimal(14, 3)
+  status            ProductionOrderStatus  @default(DRAFT)
+  plannedQuantity   Decimal                @db.Decimal(14, 3)
+  expectedOutputQty Decimal                @db.Decimal(14, 3)
+  producedQuantity  Decimal                @default(0) @db.Decimal(14, 3)
+  scrapQuantity     Decimal                @default(0) @db.Decimal(14, 3)
   notes             String?
-  openedAt          DateTime                  @default(now())
+  openedAt          DateTime               @default(now())
   closedAt          DateTime?
   createdById       String
   closedById        String?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  company           Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bom               Bom                       @relation(fields: [bomId], references: [id], onDelete: Restrict)
-  finishedItem      Item                      @relation(fields: [finishedItemId], references: [id], onDelete: Restrict)
-  warehouse         Warehouse                 @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  createdBy         User                      @relation("production_order_created_by", fields: [createdById], references: [id], onDelete: Restrict)
-  closedBy          User?                     @relation("production_order_closed_by", fields: [closedById], references: [id], onDelete: Restrict)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bom               Bom                    @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  finishedItem      Item                   @relation(fields: [finishedItemId], references: [id], onDelete: Restrict)
+  warehouse         Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy         User                   @relation("production_order_created_by", fields: [createdById], references: [id], onDelete: Restrict)
+  closedBy          User?                  @relation("production_order_closed_by", fields: [closedById], references: [id], onDelete: Restrict)
   requirements      ProductionRequirement[]
   consumptions      ProductionConsumption[]
 
@@ -172,60 +253,295 @@ model ProductionOrder {
 }
 
 model ProductionRequirement {
-  id                   String           @id @default(cuid())
-  productionOrderId    String
-  componentItemId      String
-  theoreticalQuantity  Decimal          @db.Decimal(14, 3)
-  availableQuantity    Decimal          @db.Decimal(14, 3)
-  shortageQuantity     Decimal          @db.Decimal(14, 3)
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  productionOrder      ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  componentItem        Item             @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
-  consumptions         ProductionConsumption[]
+  id                  String                @id @default(cuid())
+  productionOrderId   String
+  componentItemId     String
+  theoreticalQuantity Decimal               @db.Decimal(14, 3)
+  availableQuantity   Decimal               @db.Decimal(14, 3)
+  shortageQuantity    Decimal               @db.Decimal(14, 3)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  productionOrder     ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  componentItem       Item                  @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
+  consumptions        ProductionConsumption[]
 
   @@unique([productionOrderId, componentItemId])
 }
 
 model ProductionConsumption {
-  id                   String                @id @default(cuid())
-  productionOrderId    String
-  requirementId        String?
-  componentItemId      String
-  warehouseId          String
-  theoreticalQuantity  Decimal               @db.Decimal(14, 3)
-  consumedQuantity     Decimal               @db.Decimal(14, 3)
-  scrapQuantity        Decimal               @default(0) @db.Decimal(14, 3)
-  lotReference         String?
-  notes                String?
-  createdById          String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  productionOrder      ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  requirement          ProductionRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
-  componentItem        Item                  @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
-  warehouse            Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  createdBy            User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  id                  String                 @id @default(cuid())
+  productionOrderId   String
+  requirementId       String?
+  componentItemId     String
+  warehouseId         String
+  theoreticalQuantity Decimal                @db.Decimal(14, 3)
+  consumedQuantity    Decimal                @db.Decimal(14, 3)
+  scrapQuantity       Decimal                @default(0) @db.Decimal(14, 3)
+  lotReference        String?
+  notes               String?
+  createdById         String
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  productionOrder     ProductionOrder        @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  requirement         ProductionRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  componentItem       Item                   @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
+  warehouse           Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy           User                   @relation(fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([productionOrderId, componentItemId])
 }
 
 model StockMovement {
-  id                String            @id @default(cuid())
-  companyId         String
-  warehouseId       String
-  itemId            String
-  movementType      StockMovementType
-  quantity          Decimal           @db.Decimal(14, 3)
-  unitCost          Decimal           @db.Decimal(14, 2)
-  referenceType     String
-  referenceId       String
-  traceCode         String
-  createdAt         DateTime          @default(now())
-  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  warehouse         Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  item              Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  id            String            @id @default(cuid())
+  companyId     String
+  warehouseId   String
+  itemId        String
+  movementType  StockMovementType
+  quantity      Decimal           @db.Decimal(14, 3)
+  unitCost      Decimal           @db.Decimal(14, 2)
+  referenceType String
+  referenceId   String
+  traceCode     String
+  createdAt     DateTime          @default(now())
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  item          Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
 
   @@index([companyId, warehouseId, itemId])
   @@index([referenceType, referenceId])
+}
+
+model Supplier {
+  id                    String                 @id @default(cuid())
+  companyId             String
+  code                  String
+  name                  String
+  taxId                 String?
+  email                 String?
+  phone                 String?
+  notes                 String?
+  defaultCurrency       CurrencyCode          @default(ARS)
+  currentBalance        Decimal               @default(0) @db.Decimal(14, 2)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  company               Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices              SupplierInvoice[]
+  payments              SupplierPayment[]
+  ledgerEntries         SupplierLedgerEntry[]
+  cashMovements         CashMovement[]
+  bankMovements         BankMovement[]
+
+  @@unique([companyId, code])
+  @@index([companyId, name])
+}
+
+model CashBox {
+  id             String         @id @default(cuid())
+  companyId      String
+  code           String
+  name           String
+  currency       CurrencyCode   @default(ARS)
+  openingBalance Decimal        @default(0) @db.Decimal(14, 2)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  movements      CashMovement[]
+  payments       SupplierPayment[]
+
+  @@unique([companyId, code])
+}
+
+model CashMovement {
+  id                     String                    @id @default(cuid())
+  companyId              String
+  cashBoxId              String
+  supplierId             String?
+  paymentId              String?
+  direction              TreasuryMovementDirection
+  movementType           CashMovementType
+  amount                 Decimal                   @db.Decimal(14, 2)
+  currency               CurrencyCode              @default(ARS)
+  exchangeRate           Decimal                   @default(1) @db.Decimal(14, 6)
+  movementDate           DateTime
+  description            String
+  referenceType          String
+  referenceId            String
+  traceCode              String
+  accountingStatus       String                    @default("PENDING")
+  reconciliationGroup    String?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  company                Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cashBox                CashBox                   @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
+  supplier               Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  payment                SupplierPayment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, cashBoxId, movementDate])
+  @@index([referenceType, referenceId])
+}
+
+model BankAccount {
+  id                String            @id @default(cuid())
+  companyId         String
+  code              String
+  bankName          String
+  accountName       String
+  accountNumber     String
+  cbuAlias          String?
+  currency          CurrencyCode      @default(ARS)
+  openingBalance    Decimal           @default(0) @db.Decimal(14, 2)
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  movements         BankMovement[]
+  payments          SupplierPayment[]
+
+  @@unique([companyId, code])
+}
+
+model BankMovement {
+  id                     String                    @id @default(cuid())
+  companyId              String
+  bankAccountId          String
+  supplierId             String?
+  paymentId              String?
+  direction              TreasuryMovementDirection
+  movementType           BankMovementType
+  amount                 Decimal                   @db.Decimal(14, 2)
+  currency               CurrencyCode              @default(ARS)
+  exchangeRate           Decimal                   @default(1) @db.Decimal(14, 6)
+  movementDate           DateTime
+  description            String
+  referenceType          String
+  referenceId            String
+  traceCode              String
+  externalReference      String?
+  isReconciled           Boolean                   @default(false)
+  reconciledAt           DateTime?
+  accountingStatus       String                    @default("PENDING")
+  reconciliationGroup    String?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  company                Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount            BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  supplier               Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  payment                SupplierPayment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, bankAccountId, movementDate])
+  @@index([referenceType, referenceId])
+}
+
+model SupplierInvoice {
+  id                String                 @id @default(cuid())
+  companyId         String
+  supplierId        String
+  documentNumber    String
+  issueDate         DateTime
+  dueDate           DateTime?
+  description       String
+  currency          CurrencyCode           @default(ARS)
+  exchangeRate      Decimal                @default(1) @db.Decimal(14, 6)
+  totalAmount       Decimal                @db.Decimal(14, 2)
+  openAmount        Decimal                @db.Decimal(14, 2)
+  status            SupplierDocumentStatus @default(OPEN)
+  accountingStatus  String                 @default("PENDING")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier          Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  paymentItems      SupplierPaymentItem[]
+
+  @@unique([companyId, supplierId, documentNumber])
+  @@index([companyId, supplierId, issueDate])
+}
+
+model SupplierPayment {
+  id                String                 @id @default(cuid())
+  companyId         String
+  supplierId        String
+  paymentNumber     String
+  paymentDate       DateTime
+  currency          CurrencyCode           @default(ARS)
+  exchangeRate      Decimal                @default(1) @db.Decimal(14, 6)
+  totalAmount       Decimal                @db.Decimal(14, 2)
+  paymentMethod     PaymentMethod
+  cashBoxId         String?
+  bankAccountId     String?
+  sourceReferenceType String?
+  sourceReferenceId String?
+  notes             String?
+  accountingStatus  String                 @default("PENDING")
+  status            PaymentStatus          @default(POSTED)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier          Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  cashBox           CashBox?               @relation(fields: [cashBoxId], references: [id], onDelete: SetNull)
+  bankAccount       BankAccount?           @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  items             SupplierPaymentItem[]
+  cashMovements     CashMovement[]
+  bankMovements     BankMovement[]
+
+  @@unique([companyId, paymentNumber])
+  @@index([companyId, supplierId, paymentDate])
+}
+
+model SupplierPaymentItem {
+  id                String          @id @default(cuid())
+  paymentId         String
+  supplierInvoiceId String?
+  description       String?
+  amount            Decimal         @db.Decimal(14, 2)
+  createdAt         DateTime        @default(now())
+  payment           SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  supplierInvoice   SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([supplierInvoiceId])
+}
+
+model SupplierLedgerEntry {
+  id                String                  @id @default(cuid())
+  companyId         String
+  supplierId        String
+  entryType         SupplierLedgerEntryType
+  currency          CurrencyCode            @default(ARS)
+  exchangeRate      Decimal                 @default(1) @db.Decimal(14, 6)
+  debitAmount       Decimal                 @default(0) @db.Decimal(14, 2)
+  creditAmount      Decimal                 @default(0) @db.Decimal(14, 2)
+  balanceAfter      Decimal                 @default(0) @db.Decimal(14, 2)
+  description       String
+  referenceType     String
+  referenceId       String
+  occurredAt        DateTime
+  dueDate           DateTime?
+  accountingStatus  String                  @default("PENDING")
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier          Supplier                @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, supplierId, occurredAt])
+  @@index([referenceType, referenceId])
+}
+
+model FileAttachment {
+  id              String              @id @default(cuid())
+  companyId       String
+  ownerType       AttachmentOwnerType
+  ownerId         String
+  fileName        String
+  contentType     String
+  sizeBytes       Int
+  storageProvider StorageProvider     @default(LOCAL)
+  storageBucket   String
+  storageKey      String
+  publicUrl       String
+  uploadedAt      DateTime            @default(now())
+  createdAt       DateTime            @default(now())
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, ownerType, ownerId])
 }
