@@ -7,735 +7,225 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-enum CurrencyCode {
-  ARS
-  USD
-  EUR
-  BRL
-  CLP
-  UYU
-}
-
-enum UserRole {
-  SUPERADMIN
-  ADMIN
-  ACCOUNTANT
-  AUDITOR
-  VIEWER
-}
-
-enum AccountType {
-  ASSET
-  LIABILITY
-  EQUITY
-  REVENUE
-  EXPENSE
-  MEMORANDUM
-}
-
-enum ThirdPartyType {
-  CUSTOMER
-  SUPPLIER
-  EMPLOYEE
-  GOVERNMENT
-  OTHER
-}
-
-enum PeriodStatus {
-  OPEN
-  CLOSED
-  LOCKED
-}
-
-enum EntrySourceType {
-  MANUAL
-  IMPORT
-  API
-  ADJUSTMENT
-  CONSOLIDATION
-}
-
-enum EntryStatus {
-  DRAFT
-  POSTED
-  REVERSED
-  VOIDED
-}
-
-enum BatchStatus {
-  DRAFT
-  VALIDATED
-  READY_TO_POST
-  POSTED
-  REJECTED
-}
-
-enum ConsolidationMethod {
-  FULL
-  PROPORTIONAL
-  EQUITY
-}
-
-enum ConsolidationRunStatus {
-  DRAFT
-  RUNNING
-  COMPLETED
-  APPROVED
-  REJECTED
-}
-
-enum ConsolidationEntryType {
-  AGGREGATION
-  ELIMINATION
-  ADJUSTMENT
-  RECLASSIFICATION
-}
-
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  RESTORE
-  POST
-  APPROVE
-  LOGIN
-  LOGOUT
-}
-
-model Company {
-  id                 String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code               String                      @unique @db.VarChar(20)
-  legalName          String                      @map("legal_name") @db.VarChar(200)
-  taxId              String?                     @map("tax_id") @db.VarChar(50)
-  countryCode        String                      @map("country_code") @db.Char(2)
-  baseCurrency       CurrencyCode                @map("base_currency")
-  isActive           Boolean                     @default(true) @map("is_active")
-  deletedAt          DateTime?                   @map("deleted_at") @db.Timestamptz(6)
-  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
-  userCompanies      UserCompany[]
-  fiscalPeriods      FiscalPeriod[]
-  chartAccounts      ChartAccount[]
-  thirdParties       ThirdParty[]
-  costCenters        CostCenter[]
-  journals           Journal[]
-  journalEntries     JournalEntry[]
-  journalEntryLines  JournalEntryLine[]
-  accountingBatches  AccountingBatch[]
-  stagingEntries     StagingEntry[]
-  consolidationLinks ConsolidationGroupCompany[]
-  consolidationMaps  ConsolidationAccountMap[]
-  sourceConsolidated ConsolidationEntry[]
-  auditLogs          AuditLog[]
-
-  @@index([isActive], map: "idx_companies_is_active")
-  @@map("companies")
-}
-
-model User {
-  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email              String             @unique @db.VarChar(320)
-  fullName           String             @map("full_name") @db.VarChar(150)
-  isActive           Boolean            @default(true) @map("is_active")
-  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  userCompanies      UserCompany[]
-  createdEntries     JournalEntry[]     @relation("entry_created_by")
-  postedEntries      JournalEntry[]     @relation("entry_posted_by")
-  preparedBatches    AccountingBatch[]  @relation("batch_prepared_by")
-  initiatedRuns      ConsolidationRun[] @relation("run_initiated_by")
-  approvedRuns       ConsolidationRun[] @relation("run_approved_by")
-  auditLogs          AuditLog[]
-
-  @@map("users")
-}
-
-model UserCompany {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  companyId  String   @map("company_id") @db.Uuid
-  role       UserRole
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, companyId], map: "uq_user_companies_user_company")
-  @@index([companyId, role], map: "idx_user_companies_company_role")
-  @@map("user_companies")
-}
-
-model FiscalPeriod {
-  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId   String       @map("company_id") @db.Uuid
-  periodName  String       @map("period_name") @db.VarChar(30)
-  startDate   DateTime     @map("start_date") @db.Date
-  endDate     DateTime     @map("end_date") @db.Date
-  status      PeriodStatus @default(OPEN)
-  lockedAt    DateTime?    @map("locked_at") @db.Timestamptz(6)
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  entries     JournalEntry[]
-
-  @@unique([companyId, periodName], map: "uq_fiscal_periods_company_name")
-  @@index([companyId, startDate, endDate], map: "idx_fiscal_periods_company_dates")
-  @@map("fiscal_periods")
-}
-
-model ChartAccount {
-  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId          String                  @map("company_id") @db.Uuid
-  parentAccountId    String?                 @map("parent_account_id") @db.Uuid
-  code               String                  @db.VarChar(30)
-  name               String                  @db.VarChar(150)
-  accountType        AccountType             @map("account_type")
-  allowsPosting      Boolean                 @default(true) @map("allows_posting")
-  level              Int                     @default(1)
-  isActive           Boolean                 @default(true) @map("is_active")
-  deletedAt          DateTime?               @map("deleted_at") @db.Timestamptz(6)
-  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  parentAccount      ChartAccount?           @relation("account_hierarchy", fields: [parentAccountId], references: [id], onDelete: Restrict)
-  childAccounts      ChartAccount[]          @relation("account_hierarchy")
-  lines              JournalEntryLine[]
-  accountMaps        ConsolidationAccountMap[]
-
-  @@unique([companyId, code], map: "uq_chart_accounts_company_code")
-  @@index([companyId, accountType], map: "idx_chart_accounts_company_type")
-  @@index([parentAccountId], map: "idx_chart_accounts_parent")
-  @@map("chart_accounts")
-}
-
-model ThirdParty {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId       String         @map("company_id") @db.Uuid
-  code            String         @db.VarChar(40)
-  name            String         @db.VarChar(150)
-  thirdPartyType  ThirdPartyType @map("third_party_type")
-  documentNumber  String?        @map("document_number") @db.VarChar(50)
-  isActive        Boolean        @default(true) @map("is_active")
-  deletedAt       DateTime?      @map("deleted_at") @db.Timestamptz(6)
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  lines           JournalEntryLine[]
-
-  @@unique([companyId, code], map: "uq_third_parties_company_code")
-  @@index([companyId, thirdPartyType], map: "idx_third_parties_company_type")
-  @@map("third_parties")
-}
-
-model CostCenter {
-  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId   String             @map("company_id") @db.Uuid
-  code        String             @db.VarChar(30)
-  name        String             @db.VarChar(120)
-  isActive    Boolean            @default(true) @map("is_active")
-  deletedAt   DateTime?          @map("deleted_at") @db.Timestamptz(6)
-  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  lines       JournalEntryLine[]
-
-  @@unique([companyId, code], map: "uq_cost_centers_company_code")
-  @@index([companyId, isActive], map: "idx_cost_centers_company_active")
-  @@map("cost_centers")
-}
-
-model Journal {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId   String         @map("company_id") @db.Uuid
-  code        String         @db.VarChar(20)
-  name        String         @db.VarChar(80)
-  isActive    Boolean        @default(true) @map("is_active")
-  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company     Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  entries     JournalEntry[]
-
-  @@unique([companyId, code], map: "uq_journals_company_code")
-  @@map("journals")
-}
-
-model AccountingBatch {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId       String        @map("company_id") @db.Uuid
-  batchNumber     String        @map("batch_number") @db.VarChar(40)
-  sourceSystem    String        @map("source_system") @db.VarChar(50)
-  status          BatchStatus   @default(DRAFT)
-  importedAt      DateTime?     @map("imported_at") @db.Timestamptz(6)
-  validatedAt     DateTime?     @map("validated_at") @db.Timestamptz(6)
-  preparedByUserId String?      @map("prepared_by_user_id") @db.Uuid
-  postedEntryId   String?        @unique(map: "uq_accounting_batches_posted_entry") @map("posted_entry_id") @db.Uuid
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company         Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  preparedByUser  User?         @relation("batch_prepared_by", fields: [preparedByUserId], references: [id], onDelete: SetNull)
-  postedEntry     JournalEntry?  @relation("batch_posted_entry", fields: [postedEntryId], references: [id], onDelete: SetNull)
-  journalEntries  JournalEntry[] @relation("batch_entries")
-  stagingEntries  StagingEntry[]
-
-  @@unique([companyId, batchNumber], map: "uq_accounting_batches_company_number")
-  @@index([companyId, status], map: "idx_accounting_batches_company_status")
-  @@map("accounting_batches")
-}
-
-model StagingEntry {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId       String         @map("company_id") @db.Uuid
-  batchId         String         @map("batch_id") @db.Uuid
-  lineNo          Int            @map("line_no")
-  accountCode     String         @map("account_code") @db.VarChar(30)
-  thirdPartyCode  String?        @map("third_party_code") @db.VarChar(40)
-  costCenterCode  String?        @map("cost_center_code") @db.VarChar(30)
-  transactionDate DateTime       @map("transaction_date") @db.Date
-  description     String?        @db.VarChar(250)
-  debit           Decimal        @default(0) @db.Decimal(18, 2)
-  credit          Decimal        @default(0) @db.Decimal(18, 2)
-  currency        CurrencyCode
-  isValid         Boolean        @default(false) @map("is_valid")
-  validationErrors Json?         @map("validation_errors")
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company         Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  batch           AccountingBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-
-  @@unique([batchId, lineNo], map: "uq_staging_entries_batch_line")
-  @@index([companyId, isValid], map: "idx_staging_entries_company_valid")
-  @@map("staging_entries")
-}
-
-model JournalEntry {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId        String           @map("company_id") @db.Uuid
-  journalId        String           @map("journal_id") @db.Uuid
-  periodId         String           @map("period_id") @db.Uuid
-  batchId          String?          @map("batch_id") @db.Uuid
-  entryNumber      Int              @map("entry_number")
-  entryDate        DateTime         @map("entry_date") @db.Date
-  postingDate      DateTime         @map("posting_date") @db.Date
-  description      String           @db.VarChar(250)
-  sourceType       EntrySourceType  @map("source_type")
-  status           EntryStatus      @default(DRAFT)
-  externalRef      String?          @map("external_ref") @db.VarChar(100)
-  createdByUserId  String?          @map("created_by_user_id") @db.Uuid
-  postedByUserId   String?          @map("posted_by_user_id") @db.Uuid
-  reversedEntryId  String?          @unique(map: "uq_journal_entries_reversed_entry") @map("reversed_entry_id") @db.Uuid
-  postedAt         DateTime?        @map("posted_at") @db.Timestamptz(6)
-  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company          Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  journal          Journal          @relation(fields: [journalId], references: [id], onDelete: Restrict)
-  period           FiscalPeriod     @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  batch            AccountingBatch? @relation("batch_entries", fields: [batchId], references: [id], onDelete: SetNull)
-  createdByUser    User?            @relation("entry_created_by", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  postedByUser     User?            @relation("entry_posted_by", fields: [postedByUserId], references: [id], onDelete: SetNull)
-  reversedEntry    JournalEntry?    @relation("entry_reversal", fields: [reversedEntryId], references: [id], onDelete: SetNull)
-  reversalOf       JournalEntry?    @relation("entry_reversal")
-  lines            JournalEntryLine[]
-  batchPosted      AccountingBatch? @relation("batch_posted_entry")
-
-  @@unique([companyId, periodId, entryNumber], map: "uq_journal_entries_company_period_number")
-  @@index([companyId, status, postingDate], map: "idx_journal_entries_company_status_posting")
-  @@index([journalId, entryDate], map: "idx_journal_entries_journal_date")
-=======
-model Organization {
-  id              String           @id @default(uuid()) @db.Uuid
-  name            String
-  legalName       String?          @map("legal_name")
-  taxId           String?          @map("tax_id")
-  users           User[]
-  customers       Customer[]
-  suppliers       Supplier[]
-  products        Product[]
-  chartOfAccounts ChartOfAccount[]
-  journalEntries  JournalEntry[]
-  salesOrders     SalesOrder[]
-  purchaseOrders  PurchaseOrder[]
-  stockMovements  StockMovement[]
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@map("organizations")
-}
-
-model User {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  email          String       @unique
-  fullName       String       @map("full_name")
-  role           String       @default("user")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@index([organizationId])
-  @@map("users")
-}
-
-model Customer {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  code           String
-  name           String
-  email          String?
-  phone          String?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  salesOrders    SalesOrder[]
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@unique([organizationId, code])
-  @@index([organizationId])
-  @@map("customers")
-}
-
-model Supplier {
-  id             String          @id @default(uuid()) @db.Uuid
-  organizationId String          @map("organization_id") @db.Uuid
-  code           String
-  name           String
-  email          String?
-  phone          String?
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  purchaseOrders PurchaseOrder[]
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@unique([organizationId, code])
-  @@index([organizationId])
-  @@map("suppliers")
-}
-
-model Product {
-  id                 String              @id @default(uuid()) @db.Uuid
-  organizationId     String              @map("organization_id") @db.Uuid
-  sku                String
-  name               String
-  productType        String              @default("stockable") @map("product_type")
-  unitPrice          Decimal             @default(0) @map("unit_price") @db.Decimal(14, 2)
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  salesOrderLines    SalesOrderLine[]
-  purchaseOrderLines PurchaseOrderLine[]
-  stockMovements     StockMovement[]
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@unique([organizationId, sku])
-  @@index([organizationId])
-  @@map("products")
-}
-
-model ChartOfAccount {
-  id                String             @id @default(uuid()) @db.Uuid
-  organizationId    String             @map("organization_id") @db.Uuid
-  code              String
-  name              String
-  accountType       String             @map("account_type")
-  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  journalEntryLines JournalEntryLine[]
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@unique([organizationId, code])
-  @@map("chart_of_accounts")
-}
-
-model JournalEntry {
-  id          String             @id @default(uuid()) @db.Uuid
-  organizationId String          @map("organization_id") @db.Uuid
-  entryDate   DateTime           @map("entry_date") @db.Date
-  reference   String?
-  description String?
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  lines       JournalEntryLine[]
-  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz
-
->>>>>>> theirs
-  @@map("journal_entries")
-}
-
-model JournalEntryLine {
-<<<<<<< ours
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId        String       @map("company_id") @db.Uuid
-  journalEntryId   String       @map("journal_entry_id") @db.Uuid
-  lineNumber       Int          @map("line_number")
-  accountId        String       @map("account_id") @db.Uuid
-  thirdPartyId     String?      @map("third_party_id") @db.Uuid
-  costCenterId     String?      @map("cost_center_id") @db.Uuid
-  description      String?      @db.VarChar(250)
-  debit            Decimal      @default(0) @db.Decimal(18, 2)
-  credit           Decimal      @default(0) @db.Decimal(18, 2)
-  currency         CurrencyCode
-  amountCurrency   Decimal?     @map("amount_currency") @db.Decimal(18, 2)
-  exchangeRate     Decimal?     @map("exchange_rate") @db.Decimal(18, 8)
-  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
-  company          Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  journalEntry     JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  account          ChartAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  thirdParty       ThirdParty?  @relation(fields: [thirdPartyId], references: [id], onDelete: Restrict)
-  costCenter       CostCenter?  @relation(fields: [costCenterId], references: [id], onDelete: Restrict)
-
-  @@unique([journalEntryId, lineNumber], map: "uq_journal_entry_lines_entry_line")
-  @@index([companyId, accountId], map: "idx_journal_entry_lines_company_account")
-  @@index([thirdPartyId], map: "idx_journal_entry_lines_third_party")
-  @@map("journal_entry_lines")
-}
-
-model ConsolidationGroup {
-  id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code               String                     @unique @db.VarChar(20)
-  name               String                     @db.VarChar(150)
-  reportingCurrency  CurrencyCode               @map("reporting_currency")
-  ownerCompanyId     String?                    @map("owner_company_id") @db.Uuid
-  isActive           Boolean                    @default(true) @map("is_active")
-  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  ownerCompany       Company?                   @relation(fields: [ownerCompanyId], references: [id], onDelete: SetNull)
-  companies          ConsolidationGroupCompany[]
-  accountMaps        ConsolidationAccountMap[]
-  runs               ConsolidationRun[]
-
-  @@map("consolidation_groups")
-}
-
-model ConsolidationGroupCompany {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  groupId             String               @map("group_id") @db.Uuid
-  companyId           String               @map("company_id") @db.Uuid
-  consolidationMethod ConsolidationMethod  @map("consolidation_method")
-  ownershipPercentage Decimal              @map("ownership_percentage") @db.Decimal(5, 2)
-  effectiveFrom       DateTime             @map("effective_from") @db.Date
-  effectiveTo         DateTime?            @map("effective_to") @db.Date
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  group               ConsolidationGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  company             Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
-
-  @@unique([groupId, companyId, effectiveFrom], map: "uq_consolidation_group_companies_period")
-  @@index([companyId], map: "idx_consolidation_group_companies_company")
-  @@map("consolidation_group_companies")
-}
-
-model ConsolidationAccountMap {
-  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  groupId             String             @map("group_id") @db.Uuid
-  companyId           String             @map("company_id") @db.Uuid
-  sourceAccountId     String             @map("source_account_id") @db.Uuid
-  targetAccountCode   String             @map("target_account_code") @db.VarChar(30)
-  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  group               ConsolidationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  company             Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  sourceAccount       ChartAccount       @relation(fields: [sourceAccountId], references: [id], onDelete: Restrict)
-
-  @@unique([groupId, companyId, sourceAccountId], map: "uq_consolidation_account_maps_source")
-  @@index([groupId, targetAccountCode], map: "idx_consolidation_account_maps_target")
-  @@map("consolidation_account_maps")
-}
-
-model ConsolidationRun {
-  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  groupId          String                  @map("group_id") @db.Uuid
-  runName          String                  @map("run_name") @db.VarChar(60)
-  periodStart      DateTime                @map("period_start") @db.Date
-  periodEnd        DateTime                @map("period_end") @db.Date
-  status           ConsolidationRunStatus  @default(DRAFT)
-  initiatedByUserId String?                @map("initiated_by_user_id") @db.Uuid
-  approvedByUserId String?                 @map("approved_by_user_id") @db.Uuid
-  initiatedAt      DateTime                @default(now()) @map("initiated_at") @db.Timestamptz(6)
-  approvedAt       DateTime?               @map("approved_at") @db.Timestamptz(6)
-  createdAt        DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
-  group            ConsolidationGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  initiatedByUser  User?                   @relation("run_initiated_by", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
-  approvedByUser   User?                   @relation("run_approved_by", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  entries          ConsolidationEntry[]
-
-  @@unique([groupId, runName], map: "uq_consolidation_runs_group_name")
-  @@index([status, periodStart, periodEnd], map: "idx_consolidation_runs_status_period")
-  @@map("consolidation_runs")
-}
-
-model ConsolidationEntry {
-  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  runId           String                 @map("run_id") @db.Uuid
-  sourceCompanyId String?                @map("source_company_id") @db.Uuid
-  entryType       ConsolidationEntryType @map("entry_type")
-  accountCode     String                 @map("account_code") @db.VarChar(30)
-  description     String?                @db.VarChar(250)
-  debit           Decimal                @default(0) @db.Decimal(18, 2)
-  credit          Decimal                @default(0) @db.Decimal(18, 2)
-  createdAt       DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
-  run             ConsolidationRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
-  sourceCompany   Company?               @relation(fields: [sourceCompanyId], references: [id], onDelete: SetNull)
-
-  @@index([runId, accountCode], map: "idx_consolidation_entries_run_account")
-  @@index([sourceCompanyId], map: "idx_consolidation_entries_source_company")
-  @@map("consolidation_entries")
-}
-
-model AuditLog {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  companyId     String?     @map("company_id") @db.Uuid
-  userId        String?     @map("user_id") @db.Uuid
-  action        AuditAction
-  entityName    String      @map("entity_name") @db.VarChar(100)
-  entityId      String?     @map("entity_id") @db.Uuid
-  changedFields Json?       @map("changed_fields")
-  metadata      Json?
-  ipAddress     String?     @map("ip_address") @db.VarChar(64)
-  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  company       Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([companyId, createdAt], map: "idx_audit_logs_company_created")
-  @@index([entityName, entityId], map: "idx_audit_logs_entity")
-  @@map("audit_logs")
-=======
-  id              String         @id @default(uuid()) @db.Uuid
-  journalEntryId  String         @map("journal_entry_id") @db.Uuid
-  accountId       String         @map("account_id") @db.Uuid
-  debit           Decimal        @default(0) @db.Decimal(14, 2)
-  credit          Decimal        @default(0) @db.Decimal(14, 2)
-  lineDescription String?        @map("line_description")
-  journalEntry    JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  account         ChartOfAccount @relation(fields: [accountId], references: [id])
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
-
-  @@map("journal_entry_lines")
-}
-
-model SalesOrder {
-  id             String          @id @default(uuid()) @db.Uuid
-  organizationId String          @map("organization_id") @db.Uuid
-  customerId     String          @map("customer_id") @db.Uuid
-  orderNumber    String          @map("order_number")
-  status         String          @default("draft")
-  orderDate      DateTime        @map("order_date") @db.Date
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer       Customer        @relation(fields: [customerId], references: [id])
-  lines          SalesOrderLine[]
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@unique([organizationId, orderNumber])
-  @@index([organizationId])
-  @@map("sales_orders")
-}
-
-model SalesOrderLine {
-  id           String     @id @default(uuid()) @db.Uuid
-  salesOrderId String     @map("sales_order_id") @db.Uuid
-  productId    String     @map("product_id") @db.Uuid
-  quantity     Decimal    @db.Decimal(14, 2)
-  unitPrice    Decimal    @map("unit_price") @db.Decimal(14, 2)
-  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  product      Product    @relation(fields: [productId], references: [id])
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
-
-  @@map("sales_order_lines")
-}
-
-model PurchaseOrder {
-  id             String              @id @default(uuid()) @db.Uuid
-  organizationId String              @map("organization_id") @db.Uuid
-  supplierId     String              @map("supplier_id") @db.Uuid
-  orderNumber    String              @map("order_number")
-  status         String              @default("draft")
-  orderDate      DateTime            @map("order_date") @db.Date
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  supplier       Supplier            @relation(fields: [supplierId], references: [id])
-  lines          PurchaseOrderLine[]
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz
-
-  @@unique([organizationId, orderNumber])
-  @@index([organizationId])
-  @@map("purchase_orders")
-}
-
-model PurchaseOrderLine {
-  id              String        @id @default(uuid()) @db.Uuid
-  purchaseOrderId String        @map("purchase_order_id") @db.Uuid
-  productId       String        @map("product_id") @db.Uuid
-  quantity        Decimal       @db.Decimal(14, 2)
-  unitCost        Decimal       @map("unit_cost") @db.Decimal(14, 2)
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  product         Product       @relation(fields: [productId], references: [id])
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz
-
-  @@map("purchase_order_lines")
-}
-
-model StockMovement {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
-  productId      String       @map("product_id") @db.Uuid
-  movementDate   DateTime     @default(now()) @map("movement_date") @db.Timestamptz
-  movementType   String       @map("movement_type")
-  quantity       Decimal      @db.Decimal(14, 2)
-  reference      String?
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  product        Product      @relation(fields: [productId], references: [id])
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz
-
-  @@index([productId])
-  @@map("stock_movements")
->>>>>>> theirs
-=======
-=======
->>>>>>> theirs
 enum MembershipRole {
   OWNER
-  ADMIN
-  ANALYST
+  PLANNER
+  OPERATOR
   VIEWER
 }
 
+enum ItemType {
+  RAW_MATERIAL
+  FINISHED_GOOD
+}
+
+enum ProductionOrderStatus {
+  DRAFT
+  RELEASED
+  IN_PROGRESS
+  CLOSED
+}
+
+enum StockMovementType {
+  OPENING
+  PRODUCTION_CONSUMPTION
+  PRODUCTION_OUTPUT
+  ADJUSTMENT
+}
+
 model Company {
-  id          String       @id @default(cuid())
-  name        String
-  slug        String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  memberships Membership[]
+  id               String            @id @default(cuid())
+  name             String
+  slug             String            @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  memberships      Membership[]
+  warehouses       Warehouse[]
+  items            Item[]
+  boms             Bom[]
+  productionOrders ProductionOrder[]
+  stockMovements   StockMovement[]
 }
 
 model User {
-  id          String       @id @default(cuid())
-  email       String       @unique
-  name        String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  memberships Membership[]
+  id                 String                 @id @default(cuid())
+  name               String
+  email              String                 @unique
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  memberships        Membership[]
+  createdOrders      ProductionOrder[]      @relation("production_order_created_by")
+  closedOrders       ProductionOrder[]      @relation("production_order_closed_by")
+  consumptionEntries ProductionConsumption[]
 }
 
 model Membership {
   id        String         @id @default(cuid())
-  role      MembershipRole
-  createdAt DateTime       @default(now())
   companyId String
   userId    String
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      MembershipRole
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, userId])
-  @@index([companyId])
-  @@index([userId])
-<<<<<<< ours
->>>>>>> theirs
-=======
->>>>>>> theirs
+}
+
+model Warehouse {
+  id               String            @id @default(cuid())
+  companyId        String
+  code             String
+  name             String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productionOrders ProductionOrder[]
+  stockMovements   StockMovement[]
+
+  @@unique([companyId, code])
+}
+
+model Item {
+  id                 String                  @id @default(cuid())
+  companyId          String
+  sku                String
+  name               String
+  uom                String
+  itemType           ItemType
+  isManufacturable   Boolean                 @default(false)
+  standardCost       Decimal                 @db.Decimal(14, 2)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bomHeaders         Bom[]                   @relation("bom_finished_item")
+  bomComponents      BomLine[]               @relation("bom_component_item")
+  orderItems         ProductionOrder[]
+  requirements       ProductionRequirement[]
+  consumptions       ProductionConsumption[]
+  stockMovements     StockMovement[]
+
+  @@unique([companyId, sku])
+}
+
+model Bom {
+  id             String      @id @default(cuid())
+  companyId      String
+  finishedItemId String
+  code           String
+  version        Int         @default(1)
+  baseQuantity   Decimal     @db.Decimal(14, 3)
+  notes          String?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  finishedItem   Item        @relation("bom_finished_item", fields: [finishedItemId], references: [id], onDelete: Cascade)
+  lines          BomLine[]
+  productionOrders ProductionOrder[]
+
+  @@unique([companyId, code])
+}
+
+model BomLine {
+  id              String   @id @default(cuid())
+  bomId           String
+  componentItemId String
+  quantity        Decimal  @db.Decimal(14, 3)
+  scrapRate       Decimal  @default(0) @db.Decimal(5, 4)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  bom             Bom      @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  componentItem   Item     @relation("bom_component_item", fields: [componentItemId], references: [id], onDelete: Restrict)
+}
+
+model ProductionOrder {
+  id                String                    @id @default(cuid())
+  companyId         String
+  code              String
+  bomId             String
+  finishedItemId    String
+  warehouseId       String
+  status            ProductionOrderStatus     @default(DRAFT)
+  plannedQuantity   Decimal                   @db.Decimal(14, 3)
+  expectedOutputQty Decimal                   @db.Decimal(14, 3)
+  producedQuantity  Decimal                   @default(0) @db.Decimal(14, 3)
+  scrapQuantity     Decimal                   @default(0) @db.Decimal(14, 3)
+  notes             String?
+  openedAt          DateTime                  @default(now())
+  closedAt          DateTime?
+  createdById       String
+  closedById        String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  company           Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bom               Bom                       @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  finishedItem      Item                      @relation(fields: [finishedItemId], references: [id], onDelete: Restrict)
+  warehouse         Warehouse                 @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy         User                      @relation("production_order_created_by", fields: [createdById], references: [id], onDelete: Restrict)
+  closedBy          User?                     @relation("production_order_closed_by", fields: [closedById], references: [id], onDelete: Restrict)
+  requirements      ProductionRequirement[]
+  consumptions      ProductionConsumption[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+}
+
+model ProductionRequirement {
+  id                   String           @id @default(cuid())
+  productionOrderId    String
+  componentItemId      String
+  theoreticalQuantity  Decimal          @db.Decimal(14, 3)
+  availableQuantity    Decimal          @db.Decimal(14, 3)
+  shortageQuantity     Decimal          @db.Decimal(14, 3)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  productionOrder      ProductionOrder  @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  componentItem        Item             @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
+  consumptions         ProductionConsumption[]
+
+  @@unique([productionOrderId, componentItemId])
+}
+
+model ProductionConsumption {
+  id                   String                @id @default(cuid())
+  productionOrderId    String
+  requirementId        String?
+  componentItemId      String
+  warehouseId          String
+  theoreticalQuantity  Decimal               @db.Decimal(14, 3)
+  consumedQuantity     Decimal               @db.Decimal(14, 3)
+  scrapQuantity        Decimal               @default(0) @db.Decimal(14, 3)
+  lotReference         String?
+  notes                String?
+  createdById          String
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  productionOrder      ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  requirement          ProductionRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  componentItem        Item                  @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
+  warehouse            Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy            User                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([productionOrderId, componentItemId])
+}
+
+model StockMovement {
+  id                String            @id @default(cuid())
+  companyId         String
+  warehouseId       String
+  itemId            String
+  movementType      StockMovementType
+  quantity          Decimal           @db.Decimal(14, 3)
+  unitCost          Decimal           @db.Decimal(14, 2)
+  referenceType     String
+  referenceId       String
+  traceCode         String
+  createdAt         DateTime          @default(now())
+  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse         Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  item              Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, warehouseId, itemId])
+  @@index([referenceType, referenceId])
 }
