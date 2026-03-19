@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Quercus · Producción",
-  description: "Módulo base de producción con composición, OF, consumos, faltantes y trazabilidad.",
+  title: "Quercus · Operación",
+  description: "Módulos operativos de producción, tesorería, pagos a proveedores y trazabilidad documental.",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
     <html lang="es">

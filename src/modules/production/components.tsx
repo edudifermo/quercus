@@ -45,6 +45,12 @@ export function TopBar({
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-sm">
+          <Link
+            href={`/tesoreria?company=${context.company.slug}&user=${context.user.email}`}
+            className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800"
+          >
+            Ir a tesorería
+          </Link>
           {options.map((option) => {
             const active =
               option.userEmail === context.user.email && option.companySlug === context.company.slug;

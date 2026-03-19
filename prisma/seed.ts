@@ -1,8 +1,31 @@
-import { PrismaClient, MembershipRole, ItemType, ProductionOrderStatus, StockMovementType } from "@prisma/client";
+import {
+  BankMovementType,
+  CashMovementType,
+  CurrencyCode,
+  ItemType,
+  MembershipRole,
+  PaymentMethod,
+  PrismaClient,
+  ProductionOrderStatus,
+  StockMovementType,
+  SupplierDocumentStatus,
+  SupplierLedgerEntryType,
+  TreasuryMovementDirection,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.fileAttachment.deleteMany();
+  await prisma.supplierLedgerEntry.deleteMany();
+  await prisma.supplierPaymentItem.deleteMany();
+  await prisma.cashMovement.deleteMany();
+  await prisma.bankMovement.deleteMany();
+  await prisma.supplierPayment.deleteMany();
+  await prisma.supplierInvoice.deleteMany();
+  await prisma.cashBox.deleteMany();
+  await prisma.bankAccount.deleteMany();
+  await prisma.supplier.deleteMany();
   await prisma.productionConsumption.deleteMany();
   await prisma.productionRequirement.deleteMany();
   await prisma.stockMovement.deleteMany();
@@ -306,7 +329,246 @@ async function main() {
     },
   });
 
-  console.log("Seed de producción aplicado con BOM, OF, consumos, faltantes y trazabilidad.");
+  const [supplierHarinas, supplierServicios] = await Promise.all([
+    prisma.supplier.create({
+      data: {
+        companyId: company.id,
+        code: "PRV-0001",
+        name: "Molinos del Sur",
+        taxId: "30-71234567-8",
+        email: "facturacion@molinosdelsur.local",
+        phone: "+54 11 4000 0101",
+        defaultCurrency: CurrencyCode.ARS,
+      },
+    }),
+    prisma.supplier.create({
+      data: {
+        companyId: company.id,
+        code: "PRV-0002",
+        name: "Servicios Industriales Andinos",
+        taxId: "30-79876543-1",
+        email: "cobranzas@andinos.local",
+        phone: "+54 351 500 2200",
+        defaultCurrency: CurrencyCode.ARS,
+      },
+    }),
+  ]);
+
+  const [cashBox, bankAccount] = await Promise.all([
+    prisma.cashBox.create({
+      data: {
+        companyId: company.id,
+        code: "CAJA-ADM",
+        name: "Caja Administración",
+        currency: CurrencyCode.ARS,
+        openingBalance: 250000,
+      },
+    }),
+    prisma.bankAccount.create({
+      data: {
+        companyId: company.id,
+        code: "BANCO-GALICIA-CC",
+        bankName: "Banco Galicia",
+        accountName: "Cuenta Corriente Operativa",
+        accountNumber: "001-123456/7",
+        cbuAlias: "quercus.operativa",
+        currency: CurrencyCode.ARS,
+        openingBalance: 1450000,
+      },
+    }),
+  ]);
+
+  const invoiceHarinas = await prisma.supplierInvoice.create({
+    data: {
+      companyId: company.id,
+      supplierId: supplierHarinas.id,
+      documentNumber: "FC-A-0001-00001234",
+      issueDate: new Date("2026-03-10T09:00:00Z"),
+      dueDate: new Date("2026-03-20T09:00:00Z"),
+      description: "Compra de harina 000 y aditivos",
+      currency: CurrencyCode.ARS,
+      exchangeRate: 1,
+      totalAmount: 185000,
+      openAmount: 35000,
+      status: SupplierDocumentStatus.PARTIAL,
+    },
+  });
+
+  const invoiceServicios = await prisma.supplierInvoice.create({
+    data: {
+      companyId: company.id,
+      supplierId: supplierServicios.id,
+      documentNumber: "FC-B-0003-00004567",
+      issueDate: new Date("2026-03-12T11:30:00Z"),
+      dueDate: new Date("2026-03-27T11:30:00Z"),
+      description: "Mantenimiento de línea de empaque",
+      currency: CurrencyCode.ARS,
+      exchangeRate: 1,
+      totalAmount: 98000,
+      openAmount: 98000,
+      status: SupplierDocumentStatus.OPEN,
+    },
+  });
+
+  const payment = await prisma.supplierPayment.create({
+    data: {
+      companyId: company.id,
+      supplierId: supplierHarinas.id,
+      paymentNumber: "PAG-0001",
+      paymentDate: new Date("2026-03-18T14:15:00Z"),
+      currency: CurrencyCode.ARS,
+      exchangeRate: 1,
+      totalAmount: 150000,
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      bankAccountId: bankAccount.id,
+      sourceReferenceType: "BANK_ACCOUNT",
+      sourceReferenceId: bankAccount.id,
+      notes: "TRX 238019 - pago parcial factura harina.",
+      items: {
+        create: [
+          {
+            supplierInvoiceId: invoiceHarinas.id,
+            amount: 150000,
+            description: "Imputación FC-A-0001-00001234",
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.bankMovement.createMany({
+    data: [
+      {
+        companyId: company.id,
+        bankAccountId: bankAccount.id,
+        supplierId: supplierHarinas.id,
+        paymentId: payment.id,
+        direction: TreasuryMovementDirection.OUT,
+        movementType: BankMovementType.PAYMENT,
+        amount: 150000,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        movementDate: new Date("2026-03-18T14:15:00Z"),
+        description: "Pago proveedor PAG-0001",
+        referenceType: "SUPPLIER_PAYMENT",
+        referenceId: payment.id,
+        traceCode: "PAGO-BANCO-PAG-0001",
+        externalReference: "TRX 238019",
+        isReconciled: false,
+      },
+      {
+        companyId: company.id,
+        bankAccountId: bankAccount.id,
+        direction: TreasuryMovementDirection.OUT,
+        movementType: BankMovementType.FEE,
+        amount: 1250,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        movementDate: new Date("2026-03-18T14:16:00Z"),
+        description: "Comisión por transferencia a proveedor",
+        referenceType: "MANUAL_BANK",
+        referenceId: "BANCO-0001",
+        traceCode: "BANCO-0001",
+        externalReference: "COM-238019",
+        isReconciled: false,
+      },
+    ],
+  });
+
+  await prisma.cashMovement.createMany({
+    data: [
+      {
+        companyId: company.id,
+        cashBoxId: cashBox.id,
+        direction: TreasuryMovementDirection.OUT,
+        movementType: CashMovementType.ADJUSTMENT,
+        amount: 8500,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        movementDate: new Date("2026-03-18T10:00:00Z"),
+        description: "Pago menor de mensajería y trámites",
+        referenceType: "MANUAL_CASH",
+        referenceId: "CAJA-0001",
+        traceCode: "CAJA-0001",
+      },
+      {
+        companyId: company.id,
+        cashBoxId: cashBox.id,
+        supplierId: supplierServicios.id,
+        direction: TreasuryMovementDirection.OUT,
+        movementType: CashMovementType.PAYMENT,
+        amount: 12000,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        movementDate: new Date("2026-03-19T08:45:00Z"),
+        description: "Anticipo efectivo servicio técnico",
+        referenceType: "MANUAL_CASH",
+        referenceId: "CAJA-0002",
+        traceCode: "CAJA-0002",
+      },
+    ],
+  });
+
+  await prisma.supplierLedgerEntry.createMany({
+    data: [
+      {
+        companyId: company.id,
+        supplierId: supplierHarinas.id,
+        entryType: SupplierLedgerEntryType.INVOICE,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        debitAmount: 185000,
+        creditAmount: 0,
+        balanceAfter: 185000,
+        description: "Compra FC-A-0001-00001234 · Compra de harina 000 y aditivos",
+        referenceType: "SUPPLIER_INVOICE",
+        referenceId: invoiceHarinas.id,
+        occurredAt: new Date("2026-03-10T09:00:00Z"),
+        dueDate: new Date("2026-03-20T09:00:00Z"),
+      },
+      {
+        companyId: company.id,
+        supplierId: supplierHarinas.id,
+        entryType: SupplierLedgerEntryType.PAYMENT,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        debitAmount: 0,
+        creditAmount: 150000,
+        balanceAfter: 35000,
+        description: "Pago PAG-0001 · TRX 238019 - pago parcial factura harina.",
+        referenceType: "SUPPLIER_PAYMENT",
+        referenceId: payment.id,
+        occurredAt: new Date("2026-03-18T14:15:00Z"),
+      },
+      {
+        companyId: company.id,
+        supplierId: supplierServicios.id,
+        entryType: SupplierLedgerEntryType.INVOICE,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        debitAmount: 98000,
+        creditAmount: 0,
+        balanceAfter: 98000,
+        description: "Compra FC-B-0003-00004567 · Mantenimiento de línea de empaque",
+        referenceType: "SUPPLIER_INVOICE",
+        referenceId: invoiceServicios.id,
+        occurredAt: new Date("2026-03-12T11:30:00Z"),
+        dueDate: new Date("2026-03-27T11:30:00Z"),
+      },
+    ],
+  });
+
+  await prisma.supplier.update({
+    where: { id: supplierHarinas.id },
+    data: { currentBalance: 35000 },
+  });
+
+  await prisma.supplier.update({
+    where: { id: supplierServicios.id },
+    data: { currentBalance: 98000 },
+  });
+
+  console.log("Seed aplicado con producción, tesorería, pagos a proveedores y cuenta corriente.");
 }
 
 main()
