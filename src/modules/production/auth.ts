@@ -1,5 +1,5 @@
 import { MembershipRole } from "@prisma/client";
-import { prisma } from "@/infrastructure/database/prisma";
+import { prisma } from "@/lib/prisma";
 
 const ROLE_PERMISSIONS: Record<MembershipRole, string[]> = {
   OWNER: [
@@ -53,24 +53,31 @@ export async function getAppContext(searchParams?: {
   user?: string;
   company?: string;
 }): Promise<AppContext> {
+
   const memberships = await prisma.membership.findMany({
     include: {
       user: true,
       company: true,
     },
-    orderBy: [{ company: { name: "asc" } }, { user: { name: "asc" } }],
   });
 
   if (memberships.length === 0) {
-    throw new Error("No hay memberships configurados. Ejecutá el seed para cargar datos demo.");
+    throw new Error("No hay accesos configurados. Verificá la configuración inicial del sistema");
   }
 
-  const activeMembership =
-    memberships.find(
-      (membership) =>
-        membership.user.email === searchParams?.user &&
-        membership.company.slug === searchParams?.company,
-    ) ?? memberships[0];
+  let activeMembership;
+
+  if (searchParams?.user && searchParams?.company) {
+    activeMembership = memberships.find(
+      (m) =>
+        m.user.email === searchParams.user &&
+        m.company.slug === searchParams.company
+    );
+  }
+
+  if (!activeMembership) {
+    activeMembership = memberships[0];
+  }
 
   return {
     user: {
@@ -103,13 +110,14 @@ export async function listAvailableContexts() {
       company: true,
     },
     orderBy: [{ company: { name: "asc" } }, { user: { name: "asc" } }],
+ 
   });
 
-  return memberships.map((membership) => ({
-    userEmail: membership.user.email,
-    userName: membership.user.name,
-    companySlug: membership.company.slug,
-    companyName: membership.company.name,
-    role: membership.role,
+  return memberships.map((m) => ({
+    userEmail: m.user.email,
+    userName: m.user.name,
+    companySlug: m.company.slug,
+    companyName: m.company.name,
+    role: m.role,
   }));
 }
