@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { PrismaClient } from '@prisma/client'
+export const prisma = new PrismaClient()
+
 const dataDir = path.resolve('data');
 const dbPath = path.join(dataDir, 'db.json');
 

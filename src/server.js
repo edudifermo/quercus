@@ -127,6 +127,14 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res, url.pathname);
 });
 
+async function test() {
+  const result = await prisma.$queryRaw`SELECT 1`
+  console.log('DB OK:', result)
+}
+
+test()
+
+
 server.listen(PORT, () => {
   console.log(`Quercus server running on http://localhost:${PORT}`);
 });

@@ -163,6 +163,7 @@ model Warehouse {
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productionOrders ProductionOrder[]
   stockMovements   StockMovement[]
+  productionConsumptions ProductionConsumption[]
 
   @@unique([companyId, code])
 }
