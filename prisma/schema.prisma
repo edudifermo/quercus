@@ -91,6 +91,53 @@ enum PaymentStatus {
   VOID
 }
 
+enum AccountingPlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum AccountingAccountCategory {
+  CURRENT_ASSET
+  NON_CURRENT_ASSET
+  CURRENT_LIABILITY
+  NON_CURRENT_LIABILITY
+  EQUITY
+  OPERATING_REVENUE
+  NON_OPERATING_REVENUE
+  OPERATING_EXPENSE
+  NON_OPERATING_EXPENSE
+  COST_OF_SALES
+  PRODUCTION_VARIANCE
+  MEMORANDUM
+  OTHER
+}
+
+enum AccountingAccountNature {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+  RESULT
+  MEMORANDUM
+}
+
+enum AccountingModule {
+  SUPPLIERS
+  TREASURY
+  STOCK
+  PRODUCTION
+  ITEMS
+  GENERAL
+}
+
+enum AccountingEntryStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
 enum StorageProvider {
   LOCAL
   S3
@@ -106,37 +153,43 @@ enum AttachmentOwnerType {
 }
 
 model Company {
-  id                    String                 @id @default(cuid())
-  name                  String
-  slug                  String                 @unique
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  memberships           Membership[]
-  warehouses            Warehouse[]
-  items                 Item[]
-  boms                  Bom[]
-  productionOrders      ProductionOrder[]
-  stockMovements        StockMovement[]
-  suppliers             Supplier[]
-  cashBoxes             CashBox[]
-  cashMovements         CashMovement[]
-  bankAccounts          BankAccount[]
-  bankMovements         BankMovement[]
-  supplierInvoices      SupplierInvoice[]
-  supplierPayments      SupplierPayment[]
-  supplierLedgerEntries SupplierLedgerEntry[]
-  attachments           FileAttachment[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  slug                   String                  @unique
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  memberships            Membership[]
+  warehouses             Warehouse[]
+  items                  Item[]
+  boms                   Bom[]
+  productionOrders       ProductionOrder[]
+  stockMovements         StockMovement[]
+  suppliers              Supplier[]
+  cashBoxes              CashBox[]
+  cashMovements          CashMovement[]
+  bankAccounts           BankAccount[]
+  bankMovements          BankMovement[]
+  supplierInvoices       SupplierInvoice[]
+  supplierPayments       SupplierPayment[]
+  supplierLedgerEntries  SupplierLedgerEntry[]
+  attachments            FileAttachment[]
+  accountPlansOwned      AccountingPlan[]
+  accountingPlanLinks    CompanyAccountingPlan[]
+  accountingAccounts     AccountingAccount[]
+  accountingPostingTypes AccountingPostingType[]
+  accountingPostingRules AccountingPostingRule[]
+  accountingEntries      AccountingEntry[]
 }
 
 model User {
-  id                 String                 @id @default(cuid())
+  id                 String                  @id @default(cuid())
   name               String
-  email              String                 @unique
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
+  email              String                  @unique
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
   memberships        Membership[]
-  createdOrders      ProductionOrder[]      @relation("production_order_created_by")
-  closedOrders       ProductionOrder[]      @relation("production_order_closed_by")
+  createdOrders      ProductionOrder[]       @relation("production_order_created_by")
+  closedOrders       ProductionOrder[]       @relation("production_order_closed_by")
   consumptionEntries ProductionConsumption[]
 }
 
@@ -154,38 +207,42 @@ model Membership {
 }
 
 model Warehouse {
-  id               String            @id @default(cuid())
-  companyId        String
-  code             String
-  name             String
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  productionOrders ProductionOrder[]
-  stockMovements   StockMovement[]
+  id                     String                  @id @default(cuid())
+  companyId              String
+  code                   String
+  name                   String
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  company                Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  productionOrders       ProductionOrder[]
+  stockMovements         StockMovement[]
   productionConsumptions ProductionConsumption[]
 
   @@unique([companyId, code])
 }
 
 model Item {
-  id               String                   @id @default(cuid())
-  companyId        String
-  sku              String
-  name             String
-  uom              String
-  itemType         ItemType
-  isManufacturable Boolean                  @default(false)
-  standardCost     Decimal                  @db.Decimal(14, 2)
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
-  company          Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bomHeaders       Bom[]                    @relation("bom_finished_item")
-  bomComponents    BomLine[]                @relation("bom_component_item")
-  orderItems       ProductionOrder[]
-  requirements     ProductionRequirement[]
-  consumptions     ProductionConsumption[]
-  stockMovements   StockMovement[]
+  id                 String                  @id @default(cuid())
+  companyId          String
+  sku                String
+  name               String
+  uom                String
+  itemType           ItemType
+  isManufacturable   Boolean                 @default(false)
+  standardCost       Decimal                 @db.Decimal(14, 2)
+  inventoryAccountId String?
+  expenseAccountId   String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inventoryAccount   AccountingAccount?      @relation("item_inventory_account", fields: [inventoryAccountId], references: [id], onDelete: SetNull)
+  expenseAccount     AccountingAccount?      @relation("item_expense_account", fields: [expenseAccountId], references: [id], onDelete: SetNull)
+  bomHeaders         Bom[]                   @relation("bom_finished_item")
+  bomComponents      BomLine[]               @relation("bom_component_item")
+  orderItems         ProductionOrder[]
+  requirements       ProductionRequirement[]
+  consumptions       ProductionConsumption[]
+  stockMovements     StockMovement[]
 
   @@unique([companyId, sku])
 }
@@ -222,30 +279,34 @@ model BomLine {
 }
 
 model ProductionOrder {
-  id                String                 @id @default(cuid())
+  id                String                  @id @default(cuid())
   companyId         String
   code              String
   bomId             String
   finishedItemId    String
   warehouseId       String
-  status            ProductionOrderStatus  @default(DRAFT)
-  plannedQuantity   Decimal                @db.Decimal(14, 3)
-  expectedOutputQty Decimal                @db.Decimal(14, 3)
-  producedQuantity  Decimal                @default(0) @db.Decimal(14, 3)
-  scrapQuantity     Decimal                @default(0) @db.Decimal(14, 3)
+  status            ProductionOrderStatus   @default(DRAFT)
+  plannedQuantity   Decimal                 @db.Decimal(14, 3)
+  expectedOutputQty Decimal                 @db.Decimal(14, 3)
+  producedQuantity  Decimal                 @default(0) @db.Decimal(14, 3)
+  scrapQuantity     Decimal                 @default(0) @db.Decimal(14, 3)
   notes             String?
-  openedAt          DateTime               @default(now())
+  accountingRuleId  String?
+  accountingEntryId String?
+  openedAt          DateTime                @default(now())
   closedAt          DateTime?
   createdById       String
   closedById        String?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bom               Bom                    @relation(fields: [bomId], references: [id], onDelete: Restrict)
-  finishedItem      Item                   @relation(fields: [finishedItemId], references: [id], onDelete: Restrict)
-  warehouse         Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  createdBy         User                   @relation("production_order_created_by", fields: [createdById], references: [id], onDelete: Restrict)
-  closedBy          User?                  @relation("production_order_closed_by", fields: [closedById], references: [id], onDelete: Restrict)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bom               Bom                     @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  finishedItem      Item                    @relation(fields: [finishedItemId], references: [id], onDelete: Restrict)
+  warehouse         Warehouse               @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  accountingRule    AccountingPostingRule?  @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry   AccountingEntry?        @relation("production_order_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  createdBy         User                    @relation("production_order_created_by", fields: [createdById], references: [id], onDelete: Restrict)
+  closedBy          User?                   @relation("production_order_closed_by", fields: [closedById], references: [id], onDelete: Restrict)
   requirements      ProductionRequirement[]
   consumptions      ProductionConsumption[]
 
@@ -254,16 +315,16 @@ model ProductionOrder {
 }
 
 model ProductionRequirement {
-  id                  String                @id @default(cuid())
+  id                  String                  @id @default(cuid())
   productionOrderId   String
   componentItemId     String
-  theoreticalQuantity Decimal               @db.Decimal(14, 3)
-  availableQuantity   Decimal               @db.Decimal(14, 3)
-  shortageQuantity    Decimal               @db.Decimal(14, 3)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
-  productionOrder     ProductionOrder       @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
-  componentItem       Item                  @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
+  theoreticalQuantity Decimal                 @db.Decimal(14, 3)
+  availableQuantity   Decimal                 @db.Decimal(14, 3)
+  shortageQuantity    Decimal                 @db.Decimal(14, 3)
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  productionOrder     ProductionOrder         @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  componentItem       Item                    @relation(fields: [componentItemId], references: [id], onDelete: Restrict)
   consumptions        ProductionConsumption[]
 
   @@unique([productionOrderId, componentItemId])
@@ -293,142 +354,160 @@ model ProductionConsumption {
 }
 
 model StockMovement {
-  id            String            @id @default(cuid())
-  companyId     String
-  warehouseId   String
-  itemId        String
-  movementType  StockMovementType
-  quantity      Decimal           @db.Decimal(14, 3)
-  unitCost      Decimal           @db.Decimal(14, 2)
-  referenceType String
-  referenceId   String
-  traceCode     String
-  createdAt     DateTime          @default(now())
-  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
-  item          Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  id                String                 @id @default(cuid())
+  companyId         String
+  warehouseId       String
+  itemId            String
+  movementType      StockMovementType
+  quantity          Decimal                @db.Decimal(14, 3)
+  unitCost          Decimal                @db.Decimal(14, 2)
+  referenceType     String
+  referenceId       String
+  traceCode         String
+  accountingRuleId  String?
+  accountingEntryId String?
+  createdAt         DateTime               @default(now())
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse         Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  item              Item                   @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  accountingRule    AccountingPostingRule? @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry   AccountingEntry?       @relation("stock_movement_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
 
   @@index([companyId, warehouseId, itemId])
   @@index([referenceType, referenceId])
 }
 
 model Supplier {
-  id                    String                 @id @default(cuid())
-  companyId             String
-  code                  String
-  name                  String
-  taxId                 String?
-  email                 String?
-  phone                 String?
-  notes                 String?
-  defaultCurrency       CurrencyCode          @default(ARS)
-  currentBalance        Decimal               @default(0) @db.Decimal(14, 2)
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-  company               Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  invoices              SupplierInvoice[]
-  payments              SupplierPayment[]
-  ledgerEntries         SupplierLedgerEntry[]
-  cashMovements         CashMovement[]
-  bankMovements         BankMovement[]
+  id               String                @id @default(cuid())
+  companyId        String
+  code             String
+  name             String
+  taxId            String?
+  email            String?
+  phone            String?
+  notes            String?
+  defaultCurrency  CurrencyCode          @default(ARS)
+  currentBalance   Decimal               @default(0) @db.Decimal(14, 2)
+  payableAccountId String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  company          Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payableAccount   AccountingAccount?    @relation("supplier_payable_account", fields: [payableAccountId], references: [id], onDelete: SetNull)
+  invoices         SupplierInvoice[]
+  payments         SupplierPayment[]
+  ledgerEntries    SupplierLedgerEntry[]
+  cashMovements    CashMovement[]
+  bankMovements    BankMovement[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
 }
 
 model CashBox {
-  id             String         @id @default(cuid())
-  companyId      String
-  code           String
-  name           String
-  currency       CurrencyCode   @default(ARS)
-  openingBalance Decimal        @default(0) @db.Decimal(14, 2)
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  movements      CashMovement[]
-  payments       SupplierPayment[]
+  id                  String             @id @default(cuid())
+  companyId           String
+  code                String
+  name                String
+  currency            CurrencyCode       @default(ARS)
+  openingBalance      Decimal            @default(0) @db.Decimal(14, 2)
+  isActive            Boolean            @default(true)
+  accountingAccountId String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accountingAccount   AccountingAccount? @relation("cash_box_account", fields: [accountingAccountId], references: [id], onDelete: SetNull)
+  movements           CashMovement[]
+  payments            SupplierPayment[]
 
   @@unique([companyId, code])
 }
 
 model CashMovement {
-  id                     String                    @id @default(cuid())
-  companyId              String
-  cashBoxId              String
-  supplierId             String?
-  paymentId              String?
-  direction              TreasuryMovementDirection
-  movementType           CashMovementType
-  amount                 Decimal                   @db.Decimal(14, 2)
-  currency               CurrencyCode              @default(ARS)
-  exchangeRate           Decimal                   @default(1) @db.Decimal(14, 6)
-  movementDate           DateTime
-  description            String
-  referenceType          String
-  referenceId            String
-  traceCode              String
-  accountingStatus       String                    @default("PENDING")
-  reconciliationGroup    String?
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @updatedAt
-  company                Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  cashBox                CashBox                   @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
-  supplier               Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  payment                SupplierPayment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  id                  String                    @id @default(cuid())
+  companyId           String
+  cashBoxId           String
+  supplierId          String?
+  paymentId           String?
+  direction           TreasuryMovementDirection
+  movementType        CashMovementType
+  amount              Decimal                   @db.Decimal(14, 2)
+  currency            CurrencyCode              @default(ARS)
+  exchangeRate        Decimal                   @default(1) @db.Decimal(14, 6)
+  movementDate        DateTime
+  description         String
+  referenceType       String
+  referenceId         String
+  traceCode           String
+  accountingStatus    String                    @default("PENDING")
+  accountingRuleId    String?
+  accountingEntryId   String?
+  reconciliationGroup String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  company             Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  cashBox             CashBox                   @relation(fields: [cashBoxId], references: [id], onDelete: Restrict)
+  supplier            Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  payment             SupplierPayment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  accountingRule      AccountingPostingRule?    @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry     AccountingEntry?          @relation("cash_movement_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
 
   @@index([companyId, cashBoxId, movementDate])
   @@index([referenceType, referenceId])
 }
 
 model BankAccount {
-  id                String            @id @default(cuid())
-  companyId         String
-  code              String
-  bankName          String
-  accountName       String
-  accountNumber     String
-  cbuAlias          String?
-  currency          CurrencyCode      @default(ARS)
-  openingBalance    Decimal           @default(0) @db.Decimal(14, 2)
-  isActive          Boolean           @default(true)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  movements         BankMovement[]
-  payments          SupplierPayment[]
+  id                  String             @id @default(cuid())
+  companyId           String
+  code                String
+  bankName            String
+  accountName         String
+  accountNumber       String
+  cbuAlias            String?
+  currency            CurrencyCode       @default(ARS)
+  openingBalance      Decimal            @default(0) @db.Decimal(14, 2)
+  isActive            Boolean            @default(true)
+  accountingAccountId String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accountingAccount   AccountingAccount? @relation("bank_account_account", fields: [accountingAccountId], references: [id], onDelete: SetNull)
+  movements           BankMovement[]
+  payments            SupplierPayment[]
 
   @@unique([companyId, code])
 }
 
 model BankMovement {
-  id                     String                    @id @default(cuid())
-  companyId              String
-  bankAccountId          String
-  supplierId             String?
-  paymentId              String?
-  direction              TreasuryMovementDirection
-  movementType           BankMovementType
-  amount                 Decimal                   @db.Decimal(14, 2)
-  currency               CurrencyCode              @default(ARS)
-  exchangeRate           Decimal                   @default(1) @db.Decimal(14, 6)
-  movementDate           DateTime
-  description            String
-  referenceType          String
-  referenceId            String
-  traceCode              String
-  externalReference      String?
-  isReconciled           Boolean                   @default(false)
-  reconciledAt           DateTime?
-  accountingStatus       String                    @default("PENDING")
-  reconciliationGroup    String?
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @updatedAt
-  company                Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  bankAccount            BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
-  supplier               Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  payment                SupplierPayment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  id                  String                    @id @default(cuid())
+  companyId           String
+  bankAccountId       String
+  supplierId          String?
+  paymentId           String?
+  direction           TreasuryMovementDirection
+  movementType        BankMovementType
+  amount              Decimal                   @db.Decimal(14, 2)
+  currency            CurrencyCode              @default(ARS)
+  exchangeRate        Decimal                   @default(1) @db.Decimal(14, 6)
+  movementDate        DateTime
+  description         String
+  referenceType       String
+  referenceId         String
+  traceCode           String
+  externalReference   String?
+  isReconciled        Boolean                   @default(false)
+  reconciledAt        DateTime?
+  accountingStatus    String                    @default("PENDING")
+  accountingRuleId    String?
+  accountingEntryId   String?
+  reconciliationGroup String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  company             Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount         BankAccount               @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
+  supplier            Supplier?                 @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  payment             SupplierPayment?          @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  accountingRule      AccountingPostingRule?    @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry     AccountingEntry?          @relation("bank_movement_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
 
   @@index([companyId, bankAccountId, movementDate])
   @@index([referenceType, referenceId])
@@ -448,10 +527,14 @@ model SupplierInvoice {
   openAmount        Decimal                @db.Decimal(14, 2)
   status            SupplierDocumentStatus @default(OPEN)
   accountingStatus  String                 @default("PENDING")
+  accountingRuleId  String?
+  accountingEntryId String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
   supplier          Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  accountingRule    AccountingPostingRule? @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry   AccountingEntry?       @relation("supplier_invoice_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
   paymentItems      SupplierPaymentItem[]
 
   @@unique([companyId, supplierId, documentNumber])
@@ -459,44 +542,48 @@ model SupplierInvoice {
 }
 
 model SupplierPayment {
-  id                String                 @id @default(cuid())
-  companyId         String
-  supplierId        String
-  paymentNumber     String
-  paymentDate       DateTime
-  currency          CurrencyCode           @default(ARS)
-  exchangeRate      Decimal                @default(1) @db.Decimal(14, 6)
-  totalAmount       Decimal                @db.Decimal(14, 2)
-  paymentMethod     PaymentMethod
-  cashBoxId         String?
-  bankAccountId     String?
+  id                  String                 @id @default(cuid())
+  companyId           String
+  supplierId          String
+  paymentNumber       String
+  paymentDate         DateTime
+  currency            CurrencyCode           @default(ARS)
+  exchangeRate        Decimal                @default(1) @db.Decimal(14, 6)
+  totalAmount         Decimal                @db.Decimal(14, 2)
+  paymentMethod       PaymentMethod
+  cashBoxId           String?
+  bankAccountId       String?
   sourceReferenceType String?
-  sourceReferenceId String?
-  notes             String?
-  accountingStatus  String                 @default("PENDING")
-  status            PaymentStatus          @default(POSTED)
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier          Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  cashBox           CashBox?               @relation(fields: [cashBoxId], references: [id], onDelete: SetNull)
-  bankAccount       BankAccount?           @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
-  items             SupplierPaymentItem[]
-  cashMovements     CashMovement[]
-  bankMovements     BankMovement[]
+  sourceReferenceId   String?
+  notes               String?
+  accountingStatus    String                 @default("PENDING")
+  status              PaymentStatus          @default(POSTED)
+  accountingRuleId    String?
+  accountingEntryId   String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  company             Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier            Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  cashBox             CashBox?               @relation(fields: [cashBoxId], references: [id], onDelete: SetNull)
+  bankAccount         BankAccount?           @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  accountingRule      AccountingPostingRule? @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry     AccountingEntry?       @relation("supplier_payment_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  items               SupplierPaymentItem[]
+  cashMovements       CashMovement[]
+  bankMovements       BankMovement[]
 
   @@unique([companyId, paymentNumber])
   @@index([companyId, supplierId, paymentDate])
 }
 
 model SupplierPaymentItem {
-  id                String          @id @default(cuid())
+  id                String           @id @default(cuid())
   paymentId         String
   supplierInvoiceId String?
   description       String?
-  amount            Decimal         @db.Decimal(14, 2)
-  createdAt         DateTime        @default(now())
-  payment           SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amount            Decimal          @db.Decimal(14, 2)
+  createdAt         DateTime         @default(now())
+  payment           SupplierPayment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   supplierInvoice   SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id], onDelete: SetNull)
 
   @@index([paymentId])
@@ -504,25 +591,25 @@ model SupplierPaymentItem {
 }
 
 model SupplierLedgerEntry {
-  id                String                  @id @default(cuid())
-  companyId         String
-  supplierId        String
-  entryType         SupplierLedgerEntryType
-  currency          CurrencyCode            @default(ARS)
-  exchangeRate      Decimal                 @default(1) @db.Decimal(14, 6)
-  debitAmount       Decimal                 @default(0) @db.Decimal(14, 2)
-  creditAmount      Decimal                 @default(0) @db.Decimal(14, 2)
-  balanceAfter      Decimal                 @default(0) @db.Decimal(14, 2)
-  description       String
-  referenceType     String
-  referenceId       String
-  occurredAt        DateTime
-  dueDate           DateTime?
-  accountingStatus  String                  @default("PENDING")
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier          Supplier                @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  id               String                  @id @default(cuid())
+  companyId        String
+  supplierId       String
+  entryType        SupplierLedgerEntryType
+  currency         CurrencyCode            @default(ARS)
+  exchangeRate     Decimal                 @default(1) @db.Decimal(14, 6)
+  debitAmount      Decimal                 @default(0) @db.Decimal(14, 2)
+  creditAmount     Decimal                 @default(0) @db.Decimal(14, 2)
+  balanceAfter     Decimal                 @default(0) @db.Decimal(14, 2)
+  description      String
+  referenceType    String
+  referenceId      String
+  occurredAt       DateTime
+  dueDate          DateTime?
+  accountingStatus String                  @default("PENDING")
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  company          Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier         Supplier                @relation(fields: [supplierId], references: [id], onDelete: Restrict)
 
   @@index([companyId, supplierId, occurredAt])
   @@index([referenceType, referenceId])
@@ -545,4 +632,176 @@ model FileAttachment {
   company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, ownerType, ownerId])
+}
+
+model AccountingPlan {
+  id           String                  @id @default(cuid())
+  companyId    String?
+  sourcePlanId String?
+  code         String
+  name         String
+  description  String?
+  status       AccountingPlanStatus    @default(ACTIVE)
+  isBase       Boolean                 @default(false)
+  versionLabel String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  company      Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sourcePlan   AccountingPlan?         @relation("accounting_plan_source", fields: [sourcePlanId], references: [id], onDelete: SetNull)
+  derivedPlans AccountingPlan[]        @relation("accounting_plan_source")
+  accounts     AccountingAccount[]
+  companyLinks CompanyAccountingPlan[]
+
+  @@unique([companyId, code])
+  @@index([status, isBase])
+}
+
+model CompanyAccountingPlan {
+  id         String         @id @default(cuid())
+  companyId  String
+  planId     String
+  isDefault  Boolean        @default(false)
+  isActive   Boolean        @default(true)
+  assignedAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan       AccountingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, planId])
+  @@index([companyId, isDefault, isActive])
+}
+
+model AccountingAccount {
+  id                    String                    @id @default(cuid())
+  companyId             String?
+  planId                String
+  code                  String
+  name                  String
+  description           String?
+  category              AccountingAccountCategory
+  nature                AccountingAccountNature
+  allowsDirectPosting   Boolean                   @default(true)
+  parentAccountId       String?
+  level                 Int?
+  isActive              Boolean                   @default(true)
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  company               Company?                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan                  AccountingPlan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  parentAccount         AccountingAccount?        @relation("accounting_account_hierarchy", fields: [parentAccountId], references: [id], onDelete: SetNull)
+  childAccounts         AccountingAccount[]       @relation("accounting_account_hierarchy")
+  supplierPayables      Supplier[]                @relation("supplier_payable_account")
+  cashBoxes             CashBox[]                 @relation("cash_box_account")
+  bankAccounts          BankAccount[]             @relation("bank_account_account")
+  itemInventoryAccounts Item[]                    @relation("item_inventory_account")
+  itemExpenseAccounts   Item[]                    @relation("item_expense_account")
+  defaultDebitRules     AccountingPostingRule[]   @relation("accounting_rule_default_debit")
+  defaultCreditRules    AccountingPostingRule[]   @relation("accounting_rule_default_credit")
+  entryLines            AccountingEntryLine[]
+
+  @@unique([planId, code])
+  @@index([companyId, isActive])
+  @@index([parentAccountId])
+}
+
+model AccountingPostingType {
+  id          String                  @id @default(cuid())
+  companyId   String?
+  module      AccountingModule
+  code        String
+  name        String
+  description String?
+  isSystem    Boolean                 @default(false)
+  isActive    Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  company     Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rules       AccountingPostingRule[]
+  entries     AccountingEntry[]
+
+  @@unique([companyId, module, code])
+  @@index([module, isActive])
+}
+
+model AccountingPostingRule {
+  id                     String                 @id @default(cuid())
+  companyId              String
+  postingTypeId          String?
+  module                 AccountingModule
+  sourceEntityType       String
+  operationType          String
+  movementType           String?
+  description            String?
+  defaultDebitAccountId  String?
+  defaultCreditAccountId String?
+  priority               Int                    @default(100)
+  isActive               Boolean                @default(true)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  company                Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  postingType            AccountingPostingType? @relation(fields: [postingTypeId], references: [id], onDelete: SetNull)
+  defaultDebitAccount    AccountingAccount?     @relation("accounting_rule_default_debit", fields: [defaultDebitAccountId], references: [id], onDelete: SetNull)
+  defaultCreditAccount   AccountingAccount?     @relation("accounting_rule_default_credit", fields: [defaultCreditAccountId], references: [id], onDelete: SetNull)
+  supplierInvoices       SupplierInvoice[]
+  supplierPayments       SupplierPayment[]
+  cashMovements          CashMovement[]
+  bankMovements          BankMovement[]
+  stockMovements         StockMovement[]
+  productionOrders       ProductionOrder[]
+  accountingEntries      AccountingEntry[]
+
+  @@index([companyId, module, sourceEntityType, operationType, priority])
+  @@index([companyId, isActive])
+}
+
+model AccountingEntry {
+  id                String                 @id @default(cuid())
+  companyId         String
+  postingTypeId     String?
+  postingRuleId     String?
+  sourceModule      AccountingModule
+  sourceEntityType  String
+  sourceEntityId    String
+  operationType     String?
+  entryDate         DateTime
+  description       String
+  status            AccountingEntryStatus  @default(DRAFT)
+  externalReference String?
+  totalDebit        Decimal                @default(0) @db.Decimal(14, 2)
+  totalCredit       Decimal                @default(0) @db.Decimal(14, 2)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  postingType       AccountingPostingType? @relation(fields: [postingTypeId], references: [id], onDelete: SetNull)
+  postingRule       AccountingPostingRule? @relation(fields: [postingRuleId], references: [id], onDelete: SetNull)
+  lines             AccountingEntryLine[]
+  supplierInvoices  SupplierInvoice[]      @relation("supplier_invoice_accounting_entry")
+  supplierPayments  SupplierPayment[]      @relation("supplier_payment_accounting_entry")
+  cashMovements     CashMovement[]         @relation("cash_movement_accounting_entry")
+  bankMovements     BankMovement[]         @relation("bank_movement_accounting_entry")
+  stockMovements    StockMovement[]        @relation("stock_movement_accounting_entry")
+  productionOrders  ProductionOrder[]      @relation("production_order_accounting_entry")
+
+  @@index([companyId, entryDate])
+  @@index([companyId, sourceModule, sourceEntityType, sourceEntityId])
+  @@index([status])
+}
+
+model AccountingEntryLine {
+  id               String            @id @default(cuid())
+  entryId          String
+  accountId        String
+  lineNumber       Int               @default(1)
+  description      String?
+  debitAmount      Decimal           @default(0) @db.Decimal(14, 2)
+  creditAmount     Decimal           @default(0) @db.Decimal(14, 2)
+  sourceEntityType String?
+  sourceEntityId   String?
+  createdAt        DateTime          @default(now())
+  entry            AccountingEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account          AccountingAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([entryId, lineNumber])
+  @@index([accountId])
 }

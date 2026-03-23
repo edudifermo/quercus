@@ -1,4 +1,7 @@
 import {
+  AccountingAccountCategory,
+  AccountingAccountNature,
+  AccountingModule,
   BankMovementType,
   CashMovementType,
   CurrencyCode,
@@ -23,6 +26,10 @@ async function main() {
   await prisma.bankMovement.deleteMany();
   await prisma.supplierPayment.deleteMany();
   await prisma.supplierInvoice.deleteMany();
+  await prisma.accountingEntryLine.deleteMany();
+  await prisma.accountingEntry.deleteMany();
+  await prisma.accountingPostingRule.deleteMany();
+  await prisma.accountingPostingType.deleteMany();
   await prisma.cashBox.deleteMany();
   await prisma.bankAccount.deleteMany();
   await prisma.supplier.deleteMany();
@@ -33,6 +40,9 @@ async function main() {
   await prisma.bomLine.deleteMany();
   await prisma.bom.deleteMany();
   await prisma.item.deleteMany();
+  await prisma.accountingAccount.deleteMany();
+  await prisma.companyAccountingPlan.deleteMany();
+  await prisma.accountingPlan.deleteMany();
   await prisma.warehouse.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.user.deleteMany();
@@ -98,6 +108,315 @@ async function main() {
     },
   });
 
+  const basePlan = await prisma.accountingPlan.create({
+    data: {
+      code: "PLAN-BASE-AR",
+      name: "Plan base Argentina",
+      description: "Plan contable base reutilizable para múltiples empresas.",
+      isBase: true,
+      versionLabel: "2026.1",
+    },
+  });
+
+  const customPlan = await prisma.accountingPlan.create({
+    data: {
+      companyId: company.id,
+      sourcePlanId: basePlan.id,
+      code: "QF-OPERATIVO-2026",
+      name: "Plan operativo Quercus Foods",
+      description: "Plan derivado para parametrización operativa y contable del tenant principal.",
+      versionLabel: "QF-2026.1",
+    },
+  });
+
+  await prisma.companyAccountingPlan.createMany({
+    data: [
+      { companyId: company.id, planId: basePlan.id, isDefault: false, isActive: true },
+      { companyId: company.id, planId: customPlan.id, isDefault: true, isActive: true },
+      { companyId: secondaryCompany.id, planId: basePlan.id, isDefault: true, isActive: true },
+    ],
+  });
+
+  const currentAssets = await prisma.accountingAccount.create({
+    data: {
+      companyId: company.id,
+      planId: customPlan.id,
+      code: "1.1",
+      name: "Activo corriente",
+      category: AccountingAccountCategory.CURRENT_ASSET,
+      nature: AccountingAccountNature.ASSET,
+      allowsDirectPosting: false,
+      level: 1,
+    },
+  });
+
+  const currentLiabilities = await prisma.accountingAccount.create({
+    data: {
+      companyId: company.id,
+      planId: customPlan.id,
+      code: "2.1",
+      name: "Pasivo corriente",
+      category: AccountingAccountCategory.CURRENT_LIABILITY,
+      nature: AccountingAccountNature.LIABILITY,
+      allowsDirectPosting: false,
+      level: 1,
+    },
+  });
+
+  const operatingExpenses = await prisma.accountingAccount.create({
+    data: {
+      companyId: company.id,
+      planId: customPlan.id,
+      code: "5.1",
+      name: "Gastos operativos",
+      category: AccountingAccountCategory.OPERATING_EXPENSE,
+      nature: AccountingAccountNature.EXPENSE,
+      allowsDirectPosting: false,
+      level: 1,
+    },
+  });
+
+  const productionResults = await prisma.accountingAccount.create({
+    data: {
+      companyId: company.id,
+      planId: customPlan.id,
+      code: "5.2",
+      name: "Resultados de producción",
+      category: AccountingAccountCategory.PRODUCTION_VARIANCE,
+      nature: AccountingAccountNature.RESULT,
+      allowsDirectPosting: false,
+      level: 1,
+    },
+  });
+
+  const [cashAccount, bankAccountLedger, supplierPayables, rawMaterialInventory, finishedGoodsInventory, purchaseExpense, workInProgress] =
+    await Promise.all([
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: currentAssets.id,
+          code: "1.1.1",
+          name: "Caja general",
+          category: AccountingAccountCategory.CURRENT_ASSET,
+          nature: AccountingAccountNature.ASSET,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: currentAssets.id,
+          code: "1.1.2",
+          name: "Banco Galicia cuenta corriente",
+          category: AccountingAccountCategory.CURRENT_ASSET,
+          nature: AccountingAccountNature.ASSET,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: currentLiabilities.id,
+          code: "2.1.1",
+          name: "Proveedores nacionales",
+          category: AccountingAccountCategory.CURRENT_LIABILITY,
+          nature: AccountingAccountNature.LIABILITY,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: currentAssets.id,
+          code: "1.1.3",
+          name: "Inventario materias primas",
+          category: AccountingAccountCategory.CURRENT_ASSET,
+          nature: AccountingAccountNature.ASSET,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: currentAssets.id,
+          code: "1.1.4",
+          name: "Inventario productos terminados",
+          category: AccountingAccountCategory.CURRENT_ASSET,
+          nature: AccountingAccountNature.ASSET,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: operatingExpenses.id,
+          code: "5.1.1",
+          name: "Compras y servicios de proveedores",
+          category: AccountingAccountCategory.OPERATING_EXPENSE,
+          nature: AccountingAccountNature.EXPENSE,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: productionResults.id,
+          code: "5.2.1",
+          name: "Producción en proceso",
+          category: AccountingAccountCategory.PRODUCTION_VARIANCE,
+          nature: AccountingAccountNature.RESULT,
+          level: 2,
+        },
+      }),
+    ]);
+
+  const [supplierInvoicePostingType, supplierPaymentPostingType, stockPostingType, productionPostingType, cashPostingType] =
+    await Promise.all([
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.SUPPLIERS,
+          code: "SUPPLIER_INVOICE",
+          name: "Factura de proveedor",
+          description: "Imputación base de compra a proveedor.",
+          isSystem: true,
+        },
+      }),
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.TREASURY,
+          code: "SUPPLIER_PAYMENT",
+          name: "Pago a proveedor",
+          description: "Imputación base de cancelación de deuda a proveedor.",
+          isSystem: true,
+        },
+      }),
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.STOCK,
+          code: "STOCK_MOVEMENT",
+          name: "Movimiento de stock",
+          description: "Preparación para imputaciones futuras del ledger de inventario.",
+          isSystem: true,
+        },
+      }),
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.PRODUCTION,
+          code: "PRODUCTION_CLOSE",
+          name: "Cierre de orden de producción",
+          description: "Preparación para imputación de consumos y producción terminada.",
+          isSystem: true,
+        },
+      }),
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.TREASURY,
+          code: "CASH_MOVEMENT",
+          name: "Movimiento de caja",
+          description: "Regla mínima para movimientos manuales de caja.",
+          isSystem: true,
+        },
+      }),
+    ]);
+
+  const supplierInvoiceRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: supplierInvoicePostingType.id,
+      module: AccountingModule.SUPPLIERS,
+      sourceEntityType: "SUPPLIER_INVOICE",
+      operationType: "PURCHASE_INVOICE",
+      description: "Regla base para registrar factura de proveedor.",
+      defaultDebitAccountId: purchaseExpense.id,
+      defaultCreditAccountId: supplierPayables.id,
+      priority: 10,
+    },
+  });
+
+  const supplierPaymentRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: supplierPaymentPostingType.id,
+      module: AccountingModule.TREASURY,
+      sourceEntityType: "SUPPLIER_PAYMENT",
+      operationType: "SUPPLIER_PAYMENT",
+      description: "Regla base para pagos bancarios a proveedores.",
+      defaultDebitAccountId: supplierPayables.id,
+      defaultCreditAccountId: bankAccountLedger.id,
+      priority: 10,
+    },
+  });
+
+  const cashMovementRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: cashPostingType.id,
+      module: AccountingModule.TREASURY,
+      sourceEntityType: "CASH_MOVEMENT",
+      operationType: "CASH_ADJUSTMENT",
+      description: "Regla mínima para egresos manuales de caja.",
+      defaultDebitAccountId: purchaseExpense.id,
+      defaultCreditAccountId: cashAccount.id,
+      priority: 10,
+    },
+  });
+
+  const stockConsumptionRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: stockPostingType.id,
+      module: AccountingModule.STOCK,
+      sourceEntityType: "STOCK_MOVEMENT",
+      operationType: "PRODUCTION_CONSUMPTION",
+      movementType: "PRODUCTION_CONSUMPTION",
+      description: "Consumo de materias primas hacia producción en proceso.",
+      defaultDebitAccountId: workInProgress.id,
+      defaultCreditAccountId: rawMaterialInventory.id,
+      priority: 10,
+    },
+  });
+
+  const stockOutputRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: stockPostingType.id,
+      module: AccountingModule.STOCK,
+      sourceEntityType: "STOCK_MOVEMENT",
+      operationType: "PRODUCTION_OUTPUT",
+      movementType: "PRODUCTION_OUTPUT",
+      description: "Ingreso de producto terminado desde producción en proceso.",
+      defaultDebitAccountId: finishedGoodsInventory.id,
+      defaultCreditAccountId: workInProgress.id,
+      priority: 10,
+    },
+  });
+
+  const productionCloseRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: productionPostingType.id,
+      module: AccountingModule.PRODUCTION,
+      sourceEntityType: "PRODUCTION_ORDER",
+      operationType: "PRODUCTION_CLOSE",
+      description: "Regla de referencia para cierre de orden y futura generación de asiento.",
+      defaultDebitAccountId: finishedGoodsInventory.id,
+      defaultCreditAccountId: workInProgress.id,
+      priority: 20,
+    },
+  });
+
   const [harina, azucar, cacao, empaque, alfajor] = await Promise.all([
     prisma.item.create({
       data: {
@@ -107,6 +426,8 @@ async function main() {
         uom: "kg",
         itemType: ItemType.RAW_MATERIAL,
         standardCost: 1.45,
+        inventoryAccountId: rawMaterialInventory.id,
+        expenseAccountId: purchaseExpense.id,
       },
     }),
     prisma.item.create({
@@ -117,6 +438,8 @@ async function main() {
         uom: "kg",
         itemType: ItemType.RAW_MATERIAL,
         standardCost: 1.9,
+        inventoryAccountId: rawMaterialInventory.id,
+        expenseAccountId: purchaseExpense.id,
       },
     }),
     prisma.item.create({
@@ -127,6 +450,8 @@ async function main() {
         uom: "kg",
         itemType: ItemType.RAW_MATERIAL,
         standardCost: 6.3,
+        inventoryAccountId: rawMaterialInventory.id,
+        expenseAccountId: purchaseExpense.id,
       },
     }),
     prisma.item.create({
@@ -137,6 +462,8 @@ async function main() {
         uom: "un",
         itemType: ItemType.RAW_MATERIAL,
         standardCost: 0.11,
+        inventoryAccountId: rawMaterialInventory.id,
+        expenseAccountId: purchaseExpense.id,
       },
     }),
     prisma.item.create({
@@ -148,6 +475,7 @@ async function main() {
         itemType: ItemType.FINISHED_GOOD,
         isManufacturable: true,
         standardCost: 1.35,
+        inventoryAccountId: finishedGoodsInventory.id,
       },
     }),
   ]);
@@ -245,6 +573,7 @@ async function main() {
       producedQuantity: 98,
       scrapQuantity: 2,
       notes: "OF cerrada para validar trazabilidad end-to-end.",
+      accountingRuleId: productionCloseRule.id,
       createdById: owner.id,
       closedById: owner.id,
       closedAt: new Date("2026-03-15T16:00:00Z"),
@@ -269,11 +598,11 @@ async function main() {
 
   await prisma.stockMovement.createMany({
     data: [
-      { companyId: company.id, warehouseId: warehouse.id, itemId: harina.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -8.6, unitCost: 1.45, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-HAR-0001:CONSUMO" },
-      { companyId: company.id, warehouseId: warehouse.id, itemId: azucar.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -3.25, unitCost: 1.9, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-AZU-0001:CONSUMO" },
-      { companyId: company.id, warehouseId: warehouse.id, itemId: cacao.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -1.17, unitCost: 6.3, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-CAC-0001:CONSUMO" },
-      { companyId: company.id, warehouseId: warehouse.id, itemId: empaque.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -102, unitCost: 0.11, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-EMP-0001:CONSUMO" },
-      { companyId: company.id, warehouseId: warehouse.id, itemId: alfajor.id, movementType: StockMovementType.PRODUCTION_OUTPUT, quantity: 98, unitCost: 1.35, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:PT-ALF-0012:INGRESO" },
+      { companyId: company.id, warehouseId: warehouse.id, itemId: harina.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -8.6, unitCost: 1.45, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-HAR-0001:CONSUMO", accountingRuleId: stockConsumptionRule.id },
+      { companyId: company.id, warehouseId: warehouse.id, itemId: azucar.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -3.25, unitCost: 1.9, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-AZU-0001:CONSUMO", accountingRuleId: stockConsumptionRule.id },
+      { companyId: company.id, warehouseId: warehouse.id, itemId: cacao.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -1.17, unitCost: 6.3, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-CAC-0001:CONSUMO", accountingRuleId: stockConsumptionRule.id },
+      { companyId: company.id, warehouseId: warehouse.id, itemId: empaque.id, movementType: StockMovementType.PRODUCTION_CONSUMPTION, quantity: -102, unitCost: 0.11, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:MP-EMP-0001:CONSUMO", accountingRuleId: stockConsumptionRule.id },
+      { companyId: company.id, warehouseId: warehouse.id, itemId: alfajor.id, movementType: StockMovementType.PRODUCTION_OUTPUT, quantity: 98, unitCost: 1.35, referenceType: "PRODUCTION_ORDER", referenceId: closedOrder.id, traceCode: "OF-0001:PT-ALF-0012:INGRESO", accountingRuleId: stockOutputRule.id },
     ],
   });
 
@@ -339,6 +668,7 @@ async function main() {
         email: "facturacion@molinosdelsur.local",
         phone: "+54 11 4000 0101",
         defaultCurrency: CurrencyCode.ARS,
+        payableAccountId: supplierPayables.id,
       },
     }),
     prisma.supplier.create({
@@ -350,6 +680,7 @@ async function main() {
         email: "cobranzas@andinos.local",
         phone: "+54 351 500 2200",
         defaultCurrency: CurrencyCode.ARS,
+        payableAccountId: supplierPayables.id,
       },
     }),
   ]);
@@ -362,6 +693,7 @@ async function main() {
         name: "Caja Administración",
         currency: CurrencyCode.ARS,
         openingBalance: 250000,
+        accountingAccountId: cashAccount.id,
       },
     }),
     prisma.bankAccount.create({
@@ -374,6 +706,7 @@ async function main() {
         cbuAlias: "quercus.operativa",
         currency: CurrencyCode.ARS,
         openingBalance: 1450000,
+        accountingAccountId: bankAccountLedger.id,
       },
     }),
   ]);
@@ -391,6 +724,7 @@ async function main() {
       totalAmount: 185000,
       openAmount: 35000,
       status: SupplierDocumentStatus.PARTIAL,
+      accountingRuleId: supplierInvoiceRule.id,
     },
   });
 
@@ -407,6 +741,7 @@ async function main() {
       totalAmount: 98000,
       openAmount: 98000,
       status: SupplierDocumentStatus.OPEN,
+      accountingRuleId: supplierInvoiceRule.id,
     },
   });
 
@@ -424,6 +759,7 @@ async function main() {
       sourceReferenceType: "BANK_ACCOUNT",
       sourceReferenceId: bankAccount.id,
       notes: "TRX 238019 - pago parcial factura harina.",
+      accountingRuleId: supplierPaymentRule.id,
       items: {
         create: [
           {
@@ -455,6 +791,7 @@ async function main() {
         traceCode: "PAGO-BANCO-PAG-0001",
         externalReference: "TRX 238019",
         isReconciled: false,
+        accountingRuleId: supplierPaymentRule.id,
       },
       {
         companyId: company.id,
@@ -490,6 +827,7 @@ async function main() {
         referenceType: "MANUAL_CASH",
         referenceId: "CAJA-0001",
         traceCode: "CAJA-0001",
+        accountingRuleId: cashMovementRule.id,
       },
       {
         companyId: company.id,
@@ -505,6 +843,7 @@ async function main() {
         referenceType: "MANUAL_CASH",
         referenceId: "CAJA-0002",
         traceCode: "CAJA-0002",
+        accountingRuleId: cashMovementRule.id,
       },
     ],
   });
@@ -568,7 +907,7 @@ async function main() {
     data: { currentBalance: 98000 },
   });
 
-  console.log("Seed aplicado con producción, tesorería, pagos a proveedores y cuenta corriente.");
+  console.log("Seed aplicado con producción, tesorería y base contable estructural preparada.");
 }
 
 main()
