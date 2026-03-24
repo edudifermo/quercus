@@ -21,6 +21,7 @@ Implementación de las fases operativas sobre el stack oficial: **Next.js + Reac
 - **Cuenta corriente de proveedores** mediante `SupplierLedgerEntry` y `Supplier.currentBalance`.
 - **Adjuntos** para pagos, compras, caja y bancos con storage local listo para demo y adapter compatible con Supabase Storage (`LOCAL` / `SUPABASE`, metadata S3-ready).
 - **Base preparada para futura imputación contable** mediante `accountingStatus`, referencias de origen y movimientos firmados.
+- **Base fiscal ARCA/AFIP preparada** mediante configuración fiscal por empresa, puntos de venta, documento fiscalizable y trazabilidad de procesamiento.
 
 ## Modelo de datos principal
 
@@ -44,6 +45,13 @@ Implementación de las fases operativas sobre el stack oficial: **Next.js + Reac
 - `SupplierPayment`, `SupplierPaymentItem`
 - `SupplierLedgerEntry`
 - `FileAttachment`
+
+### Base fiscal preparada
+
+- `FiscalConfig`
+- `FiscalPointOfSale`
+- `FiscalDocument`
+- `FiscalProcessingLog`
 
 ## Pantallas incluidas
 
