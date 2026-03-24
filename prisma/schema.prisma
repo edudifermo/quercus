@@ -17,6 +17,7 @@ enum MembershipRole {
 enum ItemType {
   RAW_MATERIAL
   FINISHED_GOOD
+  SERVICE
 }
 
 enum ProductionOrderStatus {
@@ -91,6 +92,50 @@ enum PaymentStatus {
   VOID
 }
 
+enum ClientType {
+  INDIVIDUAL
+  COMPANY
+  OTHER
+}
+
+enum CommercialDocumentType {
+  QUOTATION
+  SALES_ORDER
+  DELIVERY_NOTE
+  INVOICE
+  DEBIT_NOTE
+  CREDIT_NOTE
+  INTERNAL_NOTE
+}
+
+enum CommercialDocumentStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum CommercialReceiptStatus {
+  POSTED
+  PARTIALLY_APPLIED
+  APPLIED
+  VOID
+}
+
+enum CommercialLedgerEntryType {
+  DOCUMENT
+  RECEIPT
+  ADJUSTMENT
+}
+
+enum CommercialItemType {
+  PRODUCT
+  SERVICE
+  SELLABLE
+  NON_COMMERCIAL
+}
+
 enum AccountingPlanStatus {
   DRAFT
   ACTIVE
@@ -125,6 +170,7 @@ enum AccountingAccountNature {
 
 enum AccountingModule {
   SUPPLIERS
+  SALES
   TREASURY
   STOCK
   PRODUCTION
@@ -222,50 +268,58 @@ enum FiscalProcessingStatus {
 }
 
 model Company {
-  id                     String                  @id @default(cuid())
-  name                   String
-  slug                   String                  @unique
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  memberships            Membership[]
-  warehouses             Warehouse[]
-  items                  Item[]
-  boms                   Bom[]
-  productionOrders       ProductionOrder[]
-  stockMovements         StockMovement[]
-  suppliers              Supplier[]
-  cashBoxes              CashBox[]
-  cashMovements          CashMovement[]
-  bankAccounts           BankAccount[]
-  bankMovements          BankMovement[]
-  supplierInvoices       SupplierInvoice[]
-  supplierPayments       SupplierPayment[]
-  supplierLedgerEntries  SupplierLedgerEntry[]
-  attachments            FileAttachment[]
-  accountPlansOwned      AccountingPlan[]
-  accountingPlanLinks    CompanyAccountingPlan[]
-  accountingAccounts     AccountingAccount[]
-  accountingPostingTypes AccountingPostingType[]
-  accountingPostingRules AccountingPostingRule[]
-  accountingEntries      AccountingEntry[]
-  fiscalConfigs          FiscalConfig[]
-  fiscalPointsOfSale     FiscalPointOfSale[]
-  fiscalDocuments        FiscalDocument[]
-  fiscalProcessingLogs   FiscalProcessingLog[]
+  id                            String                         @id @default(cuid())
+  name                          String
+  slug                          String                         @unique
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  memberships                   Membership[]
+  warehouses                    Warehouse[]
+  items                         Item[]
+  boms                          Bom[]
+  productionOrders              ProductionOrder[]
+  stockMovements                StockMovement[]
+  suppliers                     Supplier[]
+  cashBoxes                     CashBox[]
+  cashMovements                 CashMovement[]
+  bankAccounts                  BankAccount[]
+  bankMovements                 BankMovement[]
+  supplierInvoices              SupplierInvoice[]
+  supplierPayments              SupplierPayment[]
+  supplierLedgerEntries         SupplierLedgerEntry[]
+  attachments                   FileAttachment[]
+  accountPlansOwned             AccountingPlan[]
+  accountingPlanLinks           CompanyAccountingPlan[]
+  accountingAccounts            AccountingAccount[]
+  accountingPostingTypes        AccountingPostingType[]
+  accountingPostingRules        AccountingPostingRule[]
+  accountingEntries             AccountingEntry[]
+  fiscalConfigs                 FiscalConfig[]
+  fiscalPointsOfSale            FiscalPointOfSale[]
+  fiscalDocuments               FiscalDocument[]
+  fiscalProcessingLogs          FiscalProcessingLog[]
+  clients                       Client[]
+  commercialDocuments           CommercialDocument[]
+  commercialReceipts            CommercialReceipt[]
+  commercialLedgerEntries       CommercialLedgerEntry[]
+  commercialDocumentLines       CommercialDocumentLine[]
+  commercialReceiptApplications CommercialReceiptApplication[]
 }
 
 model User {
-  id                 String                  @id @default(cuid())
-  name               String
-  email              String                  @unique
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  memberships        Membership[]
-  createdOrders      ProductionOrder[]       @relation("production_order_created_by")
-  closedOrders       ProductionOrder[]       @relation("production_order_closed_by")
-  consumptionEntries ProductionConsumption[]
-  fiscalDocuments    FiscalDocument[]        @relation("fiscal_document_created_by")
-  fiscalLogs         FiscalProcessingLog[]
+  id                  String                  @id @default(cuid())
+  name                String
+  email               String                  @unique
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  memberships         Membership[]
+  createdOrders       ProductionOrder[]       @relation("production_order_created_by")
+  closedOrders        ProductionOrder[]       @relation("production_order_closed_by")
+  consumptionEntries  ProductionConsumption[]
+  fiscalDocuments     FiscalDocument[]        @relation("fiscal_document_created_by")
+  fiscalLogs          FiscalProcessingLog[]
+  commercialDocuments CommercialDocument[]    @relation("commercial_document_created_by")
+  commercialReceipts  CommercialReceipt[]     @relation("commercial_receipt_created_by")
 }
 
 model Membership {
@@ -297,27 +351,33 @@ model Warehouse {
 }
 
 model Item {
-  id                 String                  @id @default(cuid())
-  companyId          String
-  sku                String
-  name               String
-  uom                String
-  itemType           ItemType
-  isManufacturable   Boolean                 @default(false)
-  standardCost       Decimal                 @db.Decimal(14, 2)
-  inventoryAccountId String?
-  expenseAccountId   String?
-  createdAt          DateTime                @default(now())
-  updatedAt          DateTime                @updatedAt
-  company            Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  inventoryAccount   AccountingAccount?      @relation("item_inventory_account", fields: [inventoryAccountId], references: [id], onDelete: SetNull)
-  expenseAccount     AccountingAccount?      @relation("item_expense_account", fields: [expenseAccountId], references: [id], onDelete: SetNull)
-  bomHeaders         Bom[]                   @relation("bom_finished_item")
-  bomComponents      BomLine[]               @relation("bom_component_item")
-  orderItems         ProductionOrder[]
-  requirements       ProductionRequirement[]
-  consumptions       ProductionConsumption[]
-  stockMovements     StockMovement[]
+  id                      String                   @id @default(cuid())
+  companyId               String
+  sku                     String
+  name                    String
+  uom                     String
+  itemType                ItemType
+  isManufacturable        Boolean                  @default(false)
+  standardCost            Decimal                  @db.Decimal(14, 2)
+  inventoryAccountId      String?
+  expenseAccountId        String?
+  salesAccountId          String?
+  commercialItemType      CommercialItemType       @default(NON_COMMERCIAL)
+  isCommercialSellable    Boolean                  @default(false)
+  defaultSalePrice        Decimal?                 @db.Decimal(14, 2)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inventoryAccount        AccountingAccount?       @relation("item_inventory_account", fields: [inventoryAccountId], references: [id], onDelete: SetNull)
+  expenseAccount          AccountingAccount?       @relation("item_expense_account", fields: [expenseAccountId], references: [id], onDelete: SetNull)
+  salesAccount            AccountingAccount?       @relation("item_sales_account", fields: [salesAccountId], references: [id], onDelete: SetNull)
+  bomHeaders              Bom[]                    @relation("bom_finished_item")
+  bomComponents           BomLine[]                @relation("bom_component_item")
+  orderItems              ProductionOrder[]
+  requirements            ProductionRequirement[]
+  consumptions            ProductionConsumption[]
+  stockMovements          StockMovement[]
+  commercialDocumentLines CommercialDocumentLine[]
 
   @@unique([companyId, sku])
 }
@@ -476,6 +536,180 @@ model Supplier {
 
   @@unique([companyId, code])
   @@index([companyId, name])
+}
+
+model Client {
+  id                  String                  @id @default(cuid())
+  companyId           String
+  code                String?
+  legalName           String
+  tradeName           String?
+  clientType          ClientType              @default(COMPANY)
+  taxId               String?
+  ivaCondition        FiscalIvaCondition?
+  email               String?
+  phone               String?
+  commercialAddress   String?
+  fiscalAddress       String?
+  primaryContactName  String?
+  notes               String?
+  isActive            Boolean                 @default(true)
+  deletedAt           DateTime?
+  defaultCurrency     CurrencyCode            @default(ARS)
+  creditLimit         Decimal?                @db.Decimal(14, 2)
+  currentBalance      Decimal                 @default(0) @db.Decimal(14, 2)
+  receivableAccountId String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  company             Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  receivableAccount   AccountingAccount?      @relation("client_receivable_account", fields: [receivableAccountId], references: [id], onDelete: SetNull)
+  documents           CommercialDocument[]
+  receipts            CommercialReceipt[]
+  ledgerEntries       CommercialLedgerEntry[]
+
+  @@unique([companyId, code])
+  @@index([companyId, legalName])
+  @@index([companyId, isActive])
+}
+
+model CommercialDocument {
+  id                  String                         @id @default(cuid())
+  companyId           String
+  clientId            String
+  createdById         String?
+  fiscalDocumentId    String?
+  accountingRuleId    String?
+  accountingEntryId   String?
+  documentType        CommercialDocumentType
+  documentNumber      String
+  issueDate           DateTime
+  dueDate             DateTime?
+  currency            CurrencyCode                   @default(ARS)
+  exchangeRate        Decimal                        @default(1) @db.Decimal(14, 6)
+  subtotalAmount      Decimal                        @default(0) @db.Decimal(14, 2)
+  taxAmount           Decimal                        @default(0) @db.Decimal(14, 2)
+  totalAmount         Decimal                        @default(0) @db.Decimal(14, 2)
+  openAmount          Decimal                        @default(0) @db.Decimal(14, 2)
+  status              CommercialDocumentStatus       @default(DRAFT)
+  isFiscalizable      Boolean                        @default(false)
+  notes               String?
+  accountingStatus    String                         @default("PENDING")
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+  company             Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client              Client                         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  createdBy           User?                          @relation("commercial_document_created_by", fields: [createdById], references: [id], onDelete: SetNull)
+  fiscalDocument      FiscalDocument?                @relation(fields: [fiscalDocumentId], references: [id], onDelete: SetNull)
+  accountingRule      AccountingPostingRule?         @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry     AccountingEntry?               @relation("commercial_document_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  lines               CommercialDocumentLine[]
+  receiptApplications CommercialReceiptApplication[]
+  ledgerEntries       CommercialLedgerEntry[]
+
+  @@unique([companyId, documentNumber])
+  @@index([companyId, clientId, issueDate])
+  @@index([companyId, status])
+}
+
+model CommercialDocumentLine {
+  id                   String             @id @default(cuid())
+  companyId            String
+  commercialDocumentId String
+  itemId               String?
+  lineNumber           Int                @default(1)
+  description          String
+  quantity             Decimal            @default(1) @db.Decimal(14, 3)
+  unit                 String?
+  unitPrice            Decimal            @default(0) @db.Decimal(14, 2)
+  discountAmount       Decimal            @default(0) @db.Decimal(14, 2)
+  subtotalAmount       Decimal            @default(0) @db.Decimal(14, 2)
+  taxAmount            Decimal            @default(0) @db.Decimal(14, 2)
+  totalAmount          Decimal            @default(0) @db.Decimal(14, 2)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  company              Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document             CommercialDocument @relation(fields: [commercialDocumentId], references: [id], onDelete: Cascade)
+  item                 Item?              @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@unique([commercialDocumentId, lineNumber])
+  @@index([companyId, itemId])
+}
+
+model CommercialReceipt {
+  id                String                         @id @default(cuid())
+  companyId         String
+  clientId          String
+  createdById       String?
+  accountingRuleId  String?
+  accountingEntryId String?
+  receiptNumber     String
+  receiptDate       DateTime
+  currency          CurrencyCode                   @default(ARS)
+  exchangeRate      Decimal                        @default(1) @db.Decimal(14, 6)
+  totalAmount       Decimal                        @db.Decimal(14, 2)
+  unappliedAmount   Decimal                        @db.Decimal(14, 2)
+  paymentMethod     PaymentMethod
+  reference         String?
+  notes             String?
+  status            CommercialReceiptStatus        @default(POSTED)
+  accountingStatus  String                         @default("PENDING")
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+  company           Company                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client            Client                         @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  createdBy         User?                          @relation("commercial_receipt_created_by", fields: [createdById], references: [id], onDelete: SetNull)
+  accountingRule    AccountingPostingRule?         @relation(fields: [accountingRuleId], references: [id], onDelete: SetNull)
+  accountingEntry   AccountingEntry?               @relation("commercial_receipt_accounting_entry", fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  applications      CommercialReceiptApplication[]
+  ledgerEntries     CommercialLedgerEntry[]
+
+  @@unique([companyId, receiptNumber])
+  @@index([companyId, clientId, receiptDate])
+}
+
+model CommercialReceiptApplication {
+  id                   String             @id @default(cuid())
+  companyId            String
+  commercialReceiptId  String
+  commercialDocumentId String
+  appliedAmount        Decimal            @db.Decimal(14, 2)
+  resultingOpenAmount  Decimal?           @db.Decimal(14, 2)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  company              Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  receipt              CommercialReceipt  @relation(fields: [commercialReceiptId], references: [id], onDelete: Cascade)
+  document             CommercialDocument @relation(fields: [commercialDocumentId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, commercialReceiptId])
+  @@index([companyId, commercialDocumentId])
+}
+
+model CommercialLedgerEntry {
+  id                   String                    @id @default(cuid())
+  companyId            String
+  clientId             String
+  commercialDocumentId String?
+  commercialReceiptId  String?
+  entryType            CommercialLedgerEntryType
+  currency             CurrencyCode              @default(ARS)
+  exchangeRate         Decimal                   @default(1) @db.Decimal(14, 6)
+  debitAmount          Decimal                   @default(0) @db.Decimal(14, 2)
+  creditAmount         Decimal                   @default(0) @db.Decimal(14, 2)
+  balanceAfter         Decimal                   @default(0) @db.Decimal(14, 2)
+  description          String
+  referenceType        String
+  referenceId          String
+  occurredAt           DateTime
+  dueDate              DateTime?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  company              Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client               Client                    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  commercialDocument   CommercialDocument?       @relation(fields: [commercialDocumentId], references: [id], onDelete: SetNull)
+  commercialReceipt    CommercialReceipt?        @relation(fields: [commercialReceiptId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, clientId, occurredAt])
+  @@index([referenceType, referenceId])
 }
 
 model CashBox {
@@ -748,32 +982,34 @@ model CompanyAccountingPlan {
 }
 
 model AccountingAccount {
-  id                    String                    @id @default(cuid())
-  companyId             String?
-  planId                String
-  code                  String
-  name                  String
-  description           String?
-  category              AccountingAccountCategory
-  nature                AccountingAccountNature
-  allowsDirectPosting   Boolean                   @default(true)
-  parentAccountId       String?
-  level                 Int?
-  isActive              Boolean                   @default(true)
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
-  company               Company?                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan                  AccountingPlan            @relation(fields: [planId], references: [id], onDelete: Cascade)
-  parentAccount         AccountingAccount?        @relation("accounting_account_hierarchy", fields: [parentAccountId], references: [id], onDelete: SetNull)
-  childAccounts         AccountingAccount[]       @relation("accounting_account_hierarchy")
-  supplierPayables      Supplier[]                @relation("supplier_payable_account")
-  cashBoxes             CashBox[]                 @relation("cash_box_account")
-  bankAccounts          BankAccount[]             @relation("bank_account_account")
-  itemInventoryAccounts Item[]                    @relation("item_inventory_account")
-  itemExpenseAccounts   Item[]                    @relation("item_expense_account")
-  defaultDebitRules     AccountingPostingRule[]   @relation("accounting_rule_default_debit")
-  defaultCreditRules    AccountingPostingRule[]   @relation("accounting_rule_default_credit")
-  entryLines            AccountingEntryLine[]
+  id                       String                    @id @default(cuid())
+  companyId                String?
+  planId                   String
+  code                     String
+  name                     String
+  description              String?
+  category                 AccountingAccountCategory
+  nature                   AccountingAccountNature
+  allowsDirectPosting      Boolean                   @default(true)
+  parentAccountId          String?
+  level                    Int?
+  isActive                 Boolean                   @default(true)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  company                  Company?                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan                     AccountingPlan            @relation(fields: [planId], references: [id], onDelete: Cascade)
+  parentAccount            AccountingAccount?        @relation("accounting_account_hierarchy", fields: [parentAccountId], references: [id], onDelete: SetNull)
+  childAccounts            AccountingAccount[]       @relation("accounting_account_hierarchy")
+  supplierPayables         Supplier[]                @relation("supplier_payable_account")
+  cashBoxes                CashBox[]                 @relation("cash_box_account")
+  bankAccounts             BankAccount[]             @relation("bank_account_account")
+  itemInventoryAccounts    Item[]                    @relation("item_inventory_account")
+  itemExpenseAccounts      Item[]                    @relation("item_expense_account")
+  itemSalesAccounts        Item[]                    @relation("item_sales_account")
+  clientReceivableAccounts Client[]                  @relation("client_receivable_account")
+  defaultDebitRules        AccountingPostingRule[]   @relation("accounting_rule_default_debit")
+  defaultCreditRules       AccountingPostingRule[]   @relation("accounting_rule_default_credit")
+  entryLines               AccountingEntryLine[]
 
   @@unique([planId, code])
   @@index([companyId, isActive])
@@ -824,6 +1060,8 @@ model AccountingPostingRule {
   bankMovements          BankMovement[]
   stockMovements         StockMovement[]
   productionOrders       ProductionOrder[]
+  commercialDocuments    CommercialDocument[]
+  commercialReceipts     CommercialReceipt[]
   accountingEntries      AccountingEntry[]
 
   @@index([companyId, module, sourceEntityType, operationType, priority])
@@ -831,32 +1069,34 @@ model AccountingPostingRule {
 }
 
 model AccountingEntry {
-  id                String                 @id @default(cuid())
-  companyId         String
-  postingTypeId     String?
-  postingRuleId     String?
-  sourceModule      AccountingModule
-  sourceEntityType  String
-  sourceEntityId    String
-  operationType     String?
-  entryDate         DateTime
-  description       String
-  status            AccountingEntryStatus  @default(DRAFT)
-  externalReference String?
-  totalDebit        Decimal                @default(0) @db.Decimal(14, 2)
-  totalCredit       Decimal                @default(0) @db.Decimal(14, 2)
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  postingType       AccountingPostingType? @relation(fields: [postingTypeId], references: [id], onDelete: SetNull)
-  postingRule       AccountingPostingRule? @relation(fields: [postingRuleId], references: [id], onDelete: SetNull)
-  lines             AccountingEntryLine[]
-  supplierInvoices  SupplierInvoice[]      @relation("supplier_invoice_accounting_entry")
-  supplierPayments  SupplierPayment[]      @relation("supplier_payment_accounting_entry")
-  cashMovements     CashMovement[]         @relation("cash_movement_accounting_entry")
-  bankMovements     BankMovement[]         @relation("bank_movement_accounting_entry")
-  stockMovements    StockMovement[]        @relation("stock_movement_accounting_entry")
-  productionOrders  ProductionOrder[]      @relation("production_order_accounting_entry")
+  id                  String                 @id @default(cuid())
+  companyId           String
+  postingTypeId       String?
+  postingRuleId       String?
+  sourceModule        AccountingModule
+  sourceEntityType    String
+  sourceEntityId      String
+  operationType       String?
+  entryDate           DateTime
+  description         String
+  status              AccountingEntryStatus  @default(DRAFT)
+  externalReference   String?
+  totalDebit          Decimal                @default(0) @db.Decimal(14, 2)
+  totalCredit         Decimal                @default(0) @db.Decimal(14, 2)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  company             Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  postingType         AccountingPostingType? @relation(fields: [postingTypeId], references: [id], onDelete: SetNull)
+  postingRule         AccountingPostingRule? @relation(fields: [postingRuleId], references: [id], onDelete: SetNull)
+  lines               AccountingEntryLine[]
+  supplierInvoices    SupplierInvoice[]      @relation("supplier_invoice_accounting_entry")
+  supplierPayments    SupplierPayment[]      @relation("supplier_payment_accounting_entry")
+  cashMovements       CashMovement[]         @relation("cash_movement_accounting_entry")
+  bankMovements       BankMovement[]         @relation("bank_movement_accounting_entry")
+  stockMovements      StockMovement[]        @relation("stock_movement_accounting_entry")
+  productionOrders    ProductionOrder[]      @relation("production_order_accounting_entry")
+  commercialDocuments CommercialDocument[]   @relation("commercial_document_accounting_entry")
+  commercialReceipts  CommercialReceipt[]    @relation("commercial_receipt_accounting_entry")
 
   @@index([companyId, entryDate])
   @@index([companyId, sourceModule, sourceEntityType, sourceEntityId])
@@ -954,6 +1194,7 @@ model FiscalDocument {
   fiscalPointOfSale   FiscalPointOfSale?    @relation(fields: [fiscalPointOfSaleId], references: [id], onDelete: SetNull)
   createdBy           User?                 @relation("fiscal_document_created_by", fields: [createdById], references: [id], onDelete: SetNull)
   processingLogs      FiscalProcessingLog[]
+  commercialDocuments CommercialDocument[]
 
   @@unique([companyId, sourceEntityType, sourceEntityId, fiscalDocumentType])
   @@unique([companyId, fiscalPointOfSaleId, fiscalDocumentType, documentNumber])
