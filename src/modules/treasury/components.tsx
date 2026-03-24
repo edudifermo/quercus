@@ -19,6 +19,9 @@ export function TreasuryTopBar({ context }: { context: AppContext }) {
           <Link href={`/?company=${context.company.slug}&user=${context.user.email}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
             Producción
           </Link>
+          <Link href={`/reportes/consolidacion?company=${context.company.slug}&user=${context.user.email}`} className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 text-violet-800">
+            Consolidación
+          </Link>
           <Link href={`/reportes/tesoreria?company=${context.company.slug}&user=${context.user.email}`} className="rounded-full border border-slate-900 bg-slate-900 px-3 py-2 text-white">
             Reportes de tesorería
           </Link>
