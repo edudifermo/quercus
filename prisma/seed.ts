@@ -4,10 +4,18 @@ import {
   AccountingModule,
   BankMovementType,
   CashMovementType,
+  ClientType,
+  CommercialDocumentStatus,
+  CommercialDocumentType,
+  CommercialItemType,
+  CommercialLedgerEntryType,
+  CommercialReceiptStatus,
   CurrencyCode,
   FiscalOperationType,
   FiscalPointOfSaleUse,
   FiscalProcessingStatus,
+  FiscalDocumentStatus,
+  FiscalDocumentType,
   FiscalEnvironment,
   FiscalIvaCondition,
   GrossIncomeCondition,
@@ -25,6 +33,12 @@ import {
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.commercialLedgerEntry.deleteMany();
+  await prisma.commercialReceiptApplication.deleteMany();
+  await prisma.commercialReceipt.deleteMany();
+  await prisma.commercialDocumentLine.deleteMany();
+  await prisma.commercialDocument.deleteMany();
+  await prisma.client.deleteMany();
   await prisma.fiscalProcessingLog.deleteMany();
   await prisma.fiscalDocument.deleteMany();
   await prisma.fiscalPointOfSale.deleteMany();
@@ -251,8 +265,45 @@ async function main() {
     },
   });
 
-  const [cashAccount, bankAccountLedger, supplierPayables, rawMaterialInventory, finishedGoodsInventory, purchaseExpense, workInProgress] =
+  const operatingRevenue = await prisma.accountingAccount.create({
+    data: {
+      companyId: company.id,
+      planId: customPlan.id,
+      code: "4.1",
+      name: "Ingresos operativos",
+      category: AccountingAccountCategory.OPERATING_REVENUE,
+      nature: AccountingAccountNature.REVENUE,
+      allowsDirectPosting: false,
+      level: 1,
+    },
+  });
+
+  const [cashAccount, bankAccountLedger, supplierPayables, customerReceivables, salesRevenue, rawMaterialInventory, finishedGoodsInventory, purchaseExpense, workInProgress] =
     await Promise.all([
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: currentAssets.id,
+          code: "1.1.5",
+          name: "Clientes cuenta corriente",
+          category: AccountingAccountCategory.CURRENT_ASSET,
+          nature: AccountingAccountNature.ASSET,
+          level: 2,
+        },
+      }),
+      prisma.accountingAccount.create({
+        data: {
+          companyId: company.id,
+          planId: customPlan.id,
+          parentAccountId: operatingRevenue.id,
+          code: "4.1.1",
+          name: "Ventas mercado interno",
+          category: AccountingAccountCategory.OPERATING_REVENUE,
+          nature: AccountingAccountNature.REVENUE,
+          level: 2,
+        },
+      }),
       prisma.accountingAccount.create({
         data: {
           companyId: company.id,
@@ -339,7 +390,7 @@ async function main() {
       }),
     ]);
 
-  const [supplierInvoicePostingType, supplierPaymentPostingType, stockPostingType, productionPostingType, cashPostingType] =
+  const [supplierInvoicePostingType, supplierPaymentPostingType, stockPostingType, productionPostingType, cashPostingType, salesDocumentPostingType, salesReceiptPostingType] =
     await Promise.all([
       prisma.accountingPostingType.create({
         data: {
@@ -388,6 +439,26 @@ async function main() {
           code: "CASH_MOVEMENT",
           name: "Movimiento de caja",
           description: "Regla mínima para movimientos manuales de caja.",
+          isSystem: true,
+        },
+      }),
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.SALES,
+          code: "COMMERCIAL_DOCUMENT",
+          name: "Comprobante comercial",
+          description: "Base de imputación para ventas comerciales internas.",
+          isSystem: true,
+        },
+      }),
+      prisma.accountingPostingType.create({
+        data: {
+          companyId: company.id,
+          module: AccountingModule.SALES,
+          code: "COMMERCIAL_RECEIPT",
+          name: "Cobranza comercial",
+          description: "Base de imputación para cobranzas de clientes.",
           isSystem: true,
         },
       }),
@@ -479,6 +550,34 @@ async function main() {
     },
   });
 
+  const salesDocumentRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: salesDocumentPostingType.id,
+      module: AccountingModule.SALES,
+      sourceEntityType: "COMMERCIAL_DOCUMENT",
+      operationType: "SALES_DOCUMENT",
+      description: "Regla base para devengamiento de venta comercial.",
+      defaultDebitAccountId: customerReceivables.id,
+      defaultCreditAccountId: salesRevenue.id,
+      priority: 10,
+    },
+  });
+
+  const salesReceiptRule = await prisma.accountingPostingRule.create({
+    data: {
+      companyId: company.id,
+      postingTypeId: salesReceiptPostingType.id,
+      module: AccountingModule.SALES,
+      sourceEntityType: "COMMERCIAL_RECEIPT",
+      operationType: "CUSTOMER_RECEIPT",
+      description: "Regla base para cobranza comercial.",
+      defaultDebitAccountId: bankAccountLedger.id,
+      defaultCreditAccountId: customerReceivables.id,
+      priority: 10,
+    },
+  });
+
   const [harina, azucar, cacao, empaque, alfajor] = await Promise.all([
     prisma.item.create({
       data: {
@@ -538,9 +637,28 @@ async function main() {
         isManufacturable: true,
         standardCost: 1.35,
         inventoryAccountId: finishedGoodsInventory.id,
+        salesAccountId: salesRevenue.id,
+        commercialItemType: CommercialItemType.PRODUCT,
+        isCommercialSellable: true,
+        defaultSalePrice: 2.95,
       },
     }),
   ]);
+
+  const servicioLogistico = await prisma.item.create({
+    data: {
+      companyId: company.id,
+      sku: "SRV-LOG-0001",
+      name: "Servicio logístico local",
+      uom: "servicio",
+      itemType: ItemType.SERVICE,
+      standardCost: 0,
+      salesAccountId: salesRevenue.id,
+      commercialItemType: CommercialItemType.SERVICE,
+      isCommercialSellable: true,
+      defaultSalePrice: 25000,
+    },
+  });
 
   const bom = await prisma.bom.create({
     data: {
@@ -969,7 +1087,242 @@ async function main() {
     data: { currentBalance: 98000 },
   });
 
-  console.log("Seed aplicado con producción, tesorería y base contable estructural preparada.");
+  const [clienteDistribuidor, clienteServicios] = await Promise.all([
+    prisma.client.create({
+      data: {
+        companyId: company.id,
+        code: "CLI-0001",
+        legalName: "Distribuidora Pampeana S.R.L.",
+        tradeName: "Pampeana Mayorista",
+        clientType: ClientType.COMPANY,
+        taxId: "30-70987654-2",
+        ivaCondition: FiscalIvaCondition.RESPONSABLE_INSCRIPTO,
+        email: "compras@pampeana.local",
+        phone: "+54 11 5123 8800",
+        commercialAddress: "Av. Mitre 1450, Avellaneda, Buenos Aires",
+        fiscalAddress: "Av. Mitre 1450, Avellaneda, Buenos Aires",
+        primaryContactName: "Mariela Campos",
+        notes: "Cliente mayorista canal AMBA.",
+        defaultCurrency: CurrencyCode.ARS,
+        receivableAccountId: customerReceivables.id,
+      },
+    }),
+    prisma.client.create({
+      data: {
+        companyId: company.id,
+        code: "CLI-0002",
+        legalName: "Río Holding Servicios S.A.",
+        tradeName: "Río Servicios",
+        clientType: ClientType.COMPANY,
+        taxId: "30-74561234-9",
+        ivaCondition: FiscalIvaCondition.RESPONSABLE_INSCRIPTO,
+        email: "administracion@rioservicios.local",
+        phone: "+54 351 432 5500",
+        commercialAddress: "Bv. San Juan 850, Córdoba",
+        fiscalAddress: "Bv. San Juan 850, Córdoba",
+        primaryContactName: "Carolina Méndez",
+        defaultCurrency: CurrencyCode.ARS,
+        receivableAccountId: customerReceivables.id,
+      },
+    }),
+  ]);
+
+  const fiscalSalesDocument = await prisma.fiscalDocument.create({
+    data: {
+      companyId: company.id,
+      fiscalConfigId: fiscalConfig.id,
+      fiscalPointOfSaleId: fiscalPointOfSale.id,
+      createdById: owner.id,
+      sourceEntityType: "COMMERCIAL_DOCUMENT",
+      sourceEntityId: "PENDING-LINK",
+      fiscalDocumentType: FiscalDocumentType.FACTURA_A,
+      fiscalStatus: FiscalDocumentStatus.READY,
+      requestDraft: {
+        mode: "draft",
+        reason: "Demo de vínculo comercial-fiscal sin emisión electrónica real.",
+      },
+    },
+  });
+
+  const salesDocument = await prisma.commercialDocument.create({
+    data: {
+      companyId: company.id,
+      clientId: clienteDistribuidor.id,
+      createdById: owner.id,
+      fiscalDocumentId: fiscalSalesDocument.id,
+      accountingRuleId: salesDocumentRule.id,
+      documentType: CommercialDocumentType.INVOICE,
+      documentNumber: "VTA-0001-00000001",
+      issueDate: new Date("2026-03-20T13:30:00Z"),
+      dueDate: new Date("2026-04-04T13:30:00Z"),
+      currency: CurrencyCode.ARS,
+      exchangeRate: 1,
+      subtotalAmount: 295000,
+      taxAmount: 61950,
+      totalAmount: 356950,
+      openAmount: 156950,
+      status: CommercialDocumentStatus.PARTIALLY_PAID,
+      isFiscalizable: true,
+      notes: "Pedido mayorista marzo.",
+      lines: {
+        create: [
+          {
+            companyId: company.id,
+            itemId: alfajor.id,
+            lineNumber: 1,
+            description: "Alfajor cacao 55g caja x 100",
+            quantity: 1000,
+            unit: "un",
+            unitPrice: 295,
+            discountAmount: 0,
+            subtotalAmount: 295000,
+            taxAmount: 61950,
+            totalAmount: 356950,
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.fiscalDocument.update({
+    where: { id: fiscalSalesDocument.id },
+    data: {
+      sourceEntityId: salesDocument.id,
+      externalReference: salesDocument.documentNumber,
+    },
+  });
+
+  const serviceDocument = await prisma.commercialDocument.create({
+    data: {
+      companyId: company.id,
+      clientId: clienteServicios.id,
+      createdById: owner.id,
+      accountingRuleId: salesDocumentRule.id,
+      documentType: CommercialDocumentType.INVOICE,
+      documentNumber: "VTA-0001-00000002",
+      issueDate: new Date("2026-03-21T10:15:00Z"),
+      dueDate: new Date("2026-03-28T10:15:00Z"),
+      currency: CurrencyCode.ARS,
+      exchangeRate: 1,
+      subtotalAmount: 25000,
+      taxAmount: 5250,
+      totalAmount: 30250,
+      openAmount: 30250,
+      status: CommercialDocumentStatus.ISSUED,
+      isFiscalizable: false,
+      notes: "Servicio logístico de distribución Córdoba capital.",
+      lines: {
+        create: [
+          {
+            companyId: company.id,
+            itemId: servicioLogistico.id,
+            lineNumber: 1,
+            description: "Servicio logístico local",
+            quantity: 1,
+            unit: "servicio",
+            unitPrice: 25000,
+            discountAmount: 0,
+            subtotalAmount: 25000,
+            taxAmount: 5250,
+            totalAmount: 30250,
+          },
+        ],
+      },
+    },
+  });
+
+  const receipt = await prisma.commercialReceipt.create({
+    data: {
+      companyId: company.id,
+      clientId: clienteDistribuidor.id,
+      createdById: owner.id,
+      accountingRuleId: salesReceiptRule.id,
+      receiptNumber: "REC-0001-00000001",
+      receiptDate: new Date("2026-03-22T16:40:00Z"),
+      currency: CurrencyCode.ARS,
+      exchangeRate: 1,
+      totalAmount: 200000,
+      unappliedAmount: 0,
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      reference: "TRX COB-55429",
+      notes: "Cobro parcial del comprobante VTA-0001-00000001.",
+      status: CommercialReceiptStatus.APPLIED,
+    },
+  });
+
+  await prisma.commercialReceiptApplication.create({
+    data: {
+      companyId: company.id,
+      commercialReceiptId: receipt.id,
+      commercialDocumentId: salesDocument.id,
+      appliedAmount: 200000,
+      resultingOpenAmount: 156950,
+    },
+  });
+
+  await prisma.commercialLedgerEntry.createMany({
+    data: [
+      {
+        companyId: company.id,
+        clientId: clienteDistribuidor.id,
+        commercialDocumentId: salesDocument.id,
+        entryType: CommercialLedgerEntryType.DOCUMENT,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        debitAmount: 356950,
+        creditAmount: 0,
+        balanceAfter: 356950,
+        description: "Venta VTA-0001-00000001",
+        referenceType: "COMMERCIAL_DOCUMENT",
+        referenceId: salesDocument.id,
+        occurredAt: new Date("2026-03-20T13:30:00Z"),
+        dueDate: new Date("2026-04-04T13:30:00Z"),
+      },
+      {
+        companyId: company.id,
+        clientId: clienteDistribuidor.id,
+        commercialReceiptId: receipt.id,
+        entryType: CommercialLedgerEntryType.RECEIPT,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        debitAmount: 0,
+        creditAmount: 200000,
+        balanceAfter: 156950,
+        description: "Cobranza REC-0001-00000001",
+        referenceType: "COMMERCIAL_RECEIPT",
+        referenceId: receipt.id,
+        occurredAt: new Date("2026-03-22T16:40:00Z"),
+      },
+      {
+        companyId: company.id,
+        clientId: clienteServicios.id,
+        commercialDocumentId: serviceDocument.id,
+        entryType: CommercialLedgerEntryType.DOCUMENT,
+        currency: CurrencyCode.ARS,
+        exchangeRate: 1,
+        debitAmount: 30250,
+        creditAmount: 0,
+        balanceAfter: 30250,
+        description: "Venta VTA-0001-00000002",
+        referenceType: "COMMERCIAL_DOCUMENT",
+        referenceId: serviceDocument.id,
+        occurredAt: new Date("2026-03-21T10:15:00Z"),
+        dueDate: new Date("2026-03-28T10:15:00Z"),
+      },
+    ],
+  });
+
+  await prisma.client.update({
+    where: { id: clienteDistribuidor.id },
+    data: { currentBalance: 156950 },
+  });
+
+  await prisma.client.update({
+    where: { id: clienteServicios.id },
+    data: { currentBalance: 30250 },
+  });
+
+  console.log("Seed aplicado con producción, tesorería, fiscal y módulo comercial base preparados.");
 }
 
 main()
