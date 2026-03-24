@@ -5,6 +5,12 @@ import {
   BankMovementType,
   CashMovementType,
   CurrencyCode,
+  FiscalOperationType,
+  FiscalPointOfSaleUse,
+  FiscalProcessingStatus,
+  FiscalEnvironment,
+  FiscalIvaCondition,
+  GrossIncomeCondition,
   ItemType,
   MembershipRole,
   PaymentMethod,
@@ -19,6 +25,10 @@ import {
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.fiscalProcessingLog.deleteMany();
+  await prisma.fiscalDocument.deleteMany();
+  await prisma.fiscalPointOfSale.deleteMany();
+  await prisma.fiscalConfig.deleteMany();
   await prisma.fileAttachment.deleteMany();
   await prisma.supplierLedgerEntry.deleteMany();
   await prisma.supplierPaymentItem.deleteMany();
@@ -90,6 +100,58 @@ async function main() {
       { companyId: company.id, userId: viewer.id, role: MembershipRole.VIEWER },
       { companyId: secondaryCompany.id, userId: owner.id, role: MembershipRole.PLANNER },
     ],
+  });
+
+  const fiscalConfig = await prisma.fiscalConfig.create({
+    data: {
+      companyId: company.id,
+      cuit: "20123456786",
+      legalName: "Quercus Foods S.A.",
+      ivaCondition: FiscalIvaCondition.RESPONSABLE_INSCRIPTO,
+      grossIncomeCondition: GrossIncomeCondition.MULTILATERAL,
+      taxAddress: "Av. Siempre Viva 742, CABA",
+      fiscalEnvironment: FiscalEnvironment.TESTING,
+      integrationEnabled: false,
+      isActive: true,
+      technicalReference: "afip/wsfev1/demo",
+      certificateReference: "vault://quercus/demo-cert",
+      privateKeyReference: "vault://quercus/demo-key",
+      integrationParameters: {
+        wsaaProfile: "homologacion",
+        notes: "Base fiscal demo; sin credenciales reales.",
+      },
+    },
+  });
+
+  const fiscalPointOfSale = await prisma.fiscalPointOfSale.create({
+    data: {
+      companyId: company.id,
+      fiscalConfigId: fiscalConfig.id,
+      pointOfSaleNumber: 1,
+      description: "Punto de venta homologación principal",
+      use: FiscalPointOfSaleUse.SALES,
+      active: true,
+      metadata: {
+        channel: "erp",
+      },
+    },
+  });
+
+  await prisma.fiscalProcessingLog.create({
+    data: {
+      companyId: company.id,
+      fiscalConfigId: fiscalConfig.id,
+      fiscalPointOfSaleId: fiscalPointOfSale.id,
+      userId: owner.id,
+      sourceEntityType: "SYSTEM_BOOTSTRAP",
+      sourceEntityId: company.id,
+      operationType: FiscalOperationType.VALIDATE_CONFIGURATION,
+      status: FiscalProcessingStatus.SUCCESS,
+      responsePayload: {
+        message: "Configuración fiscal base inicializada para demo.",
+      },
+      processedAt: new Date(),
+    },
   });
 
   const warehouse = await prisma.warehouse.create({

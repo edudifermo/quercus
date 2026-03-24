@@ -152,6 +152,75 @@ enum AttachmentOwnerType {
   SUPPLIER_LEDGER_ENTRY
 }
 
+enum FiscalEnvironment {
+  TESTING
+  PRODUCTION
+}
+
+enum FiscalIvaCondition {
+  RESPONSABLE_INSCRIPTO
+  MONOTRIBUTO
+  EXENTO
+  CONSUMIDOR_FINAL
+  SUJETO_NO_CATEGORIZADO
+  IVA_NO_ALCANZADO
+}
+
+enum GrossIncomeCondition {
+  LOCAL
+  MULTILATERAL
+  EXENTO
+  NO_INSCRIPTO
+}
+
+enum FiscalPointOfSaleUse {
+  SALES
+  CREDIT_NOTE
+  DEBIT_NOTE
+  INTERNAL
+}
+
+enum FiscalDocumentType {
+  FACTURA_A
+  FACTURA_B
+  FACTURA_C
+  FACTURA_M
+  NOTA_DE_CREDITO_A
+  NOTA_DE_CREDITO_B
+  NOTA_DE_CREDITO_C
+  NOTA_DE_DEBITO_A
+  NOTA_DE_DEBITO_B
+  NOTA_DE_DEBITO_C
+  RECIBO_X
+}
+
+enum FiscalDocumentStatus {
+  DRAFT
+  READY
+  PENDING
+  SUBMITTED
+  AUTHORIZED
+  REJECTED
+  ERROR
+  CANCELLED
+}
+
+enum FiscalOperationType {
+  VALIDATE_CONFIGURATION
+  BUILD_REQUEST
+  AUTHORIZE_DOCUMENT
+  QUERY_DOCUMENT
+  SYNC_CATALOG
+  CANCEL_DOCUMENT
+  OTHER
+}
+
+enum FiscalProcessingStatus {
+  PENDING
+  SUCCESS
+  ERROR
+}
+
 model Company {
   id                     String                  @id @default(cuid())
   name                   String
@@ -179,6 +248,10 @@ model Company {
   accountingPostingTypes AccountingPostingType[]
   accountingPostingRules AccountingPostingRule[]
   accountingEntries      AccountingEntry[]
+  fiscalConfigs          FiscalConfig[]
+  fiscalPointsOfSale     FiscalPointOfSale[]
+  fiscalDocuments        FiscalDocument[]
+  fiscalProcessingLogs   FiscalProcessingLog[]
 }
 
 model User {
@@ -191,6 +264,8 @@ model User {
   createdOrders      ProductionOrder[]       @relation("production_order_created_by")
   closedOrders       ProductionOrder[]       @relation("production_order_closed_by")
   consumptionEntries ProductionConsumption[]
+  fiscalDocuments    FiscalDocument[]        @relation("fiscal_document_created_by")
+  fiscalLogs         FiscalProcessingLog[]
 }
 
 model Membership {
@@ -804,4 +879,112 @@ model AccountingEntryLine {
 
   @@index([entryId, lineNumber])
   @@index([accountId])
+}
+
+model FiscalConfig {
+  id                    String                @id @default(cuid())
+  companyId             String
+  cuit                  String
+  legalName             String
+  ivaCondition          FiscalIvaCondition
+  grossIncomeCondition  GrossIncomeCondition?
+  taxAddress            String?
+  fiscalEnvironment     FiscalEnvironment     @default(TESTING)
+  integrationEnabled    Boolean               @default(false)
+  isActive              Boolean               @default(true)
+  certificateReference  String?
+  privateKeyReference   String?
+  technicalReference    String?
+  taxpayerReference     String?
+  integrationParameters Json?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  company               Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pointsOfSale          FiscalPointOfSale[]
+  fiscalDocuments       FiscalDocument[]
+  processingLogs        FiscalProcessingLog[]
+
+  @@unique([companyId])
+  @@unique([cuit])
+  @@index([companyId, isActive])
+}
+
+model FiscalPointOfSale {
+  id                String                @id @default(cuid())
+  companyId         String
+  fiscalConfigId    String
+  pointOfSaleNumber Int
+  description       String?
+  active            Boolean               @default(true)
+  use               FiscalPointOfSaleUse?
+  metadata          Json?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  company           Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalConfig      FiscalConfig          @relation(fields: [fiscalConfigId], references: [id], onDelete: Cascade)
+  fiscalDocuments   FiscalDocument[]
+  processingLogs    FiscalProcessingLog[]
+
+  @@unique([companyId, pointOfSaleNumber])
+  @@index([companyId, active])
+  @@index([fiscalConfigId, use])
+}
+
+model FiscalDocument {
+  id                  String                @id @default(cuid())
+  companyId           String
+  fiscalConfigId      String
+  fiscalPointOfSaleId String?
+  createdById         String?
+  sourceEntityType    String
+  sourceEntityId      String
+  fiscalDocumentType  FiscalDocumentType
+  fiscalStatus        FiscalDocumentStatus  @default(DRAFT)
+  documentNumber      Int?
+  externalReference   String?
+  requestDraft        Json?
+  responseData        Json?
+  errorCode           String?
+  errorMessage        String?
+  lastProcessedAt     DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  company             Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalConfig        FiscalConfig          @relation(fields: [fiscalConfigId], references: [id], onDelete: Restrict)
+  fiscalPointOfSale   FiscalPointOfSale?    @relation(fields: [fiscalPointOfSaleId], references: [id], onDelete: SetNull)
+  createdBy           User?                 @relation("fiscal_document_created_by", fields: [createdById], references: [id], onDelete: SetNull)
+  processingLogs      FiscalProcessingLog[]
+
+  @@unique([companyId, sourceEntityType, sourceEntityId, fiscalDocumentType])
+  @@unique([companyId, fiscalPointOfSaleId, fiscalDocumentType, documentNumber])
+  @@index([companyId, fiscalStatus, fiscalDocumentType])
+  @@index([sourceEntityType, sourceEntityId])
+}
+
+model FiscalProcessingLog {
+  id                  String                 @id @default(cuid())
+  companyId           String
+  fiscalConfigId      String?
+  fiscalDocumentId    String?
+  fiscalPointOfSaleId String?
+  userId              String?
+  sourceEntityType    String?
+  sourceEntityId      String?
+  operationType       FiscalOperationType
+  status              FiscalProcessingStatus @default(PENDING)
+  requestPayload      Json?
+  responsePayload     Json?
+  errorCode           String?
+  errorMessage        String?
+  createdAt           DateTime               @default(now())
+  processedAt         DateTime?
+  company             Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalConfig        FiscalConfig?          @relation(fields: [fiscalConfigId], references: [id], onDelete: SetNull)
+  fiscalDocument      FiscalDocument?        @relation(fields: [fiscalDocumentId], references: [id], onDelete: SetNull)
+  fiscalPointOfSale   FiscalPointOfSale?     @relation(fields: [fiscalPointOfSaleId], references: [id], onDelete: SetNull)
+  user                User?                  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, status, operationType])
+  @@index([sourceEntityType, sourceEntityId])
 }
