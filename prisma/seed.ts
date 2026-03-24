@@ -64,6 +64,9 @@ async function main() {
   await prisma.bomLine.deleteMany();
   await prisma.bom.deleteMany();
   await prisma.item.deleteMany();
+  await prisma.consolidationGroupMembership.deleteMany();
+  await prisma.consolidationGroupCompany.deleteMany();
+  await prisma.consolidationGroup.deleteMany();
   await prisma.accountingAccount.deleteMany();
   await prisma.companyAccountingPlan.deleteMany();
   await prisma.accountingPlan.deleteMany();
@@ -114,6 +117,27 @@ async function main() {
       { companyId: company.id, userId: viewer.id, role: MembershipRole.VIEWER },
       { companyId: secondaryCompany.id, userId: owner.id, role: MembershipRole.PLANNER },
     ],
+  });
+
+  await prisma.consolidationGroup.create({
+    data: {
+      name: "Grupo Quercus Demo",
+      code: "QUERCUS-DEMO",
+      description: "Consolidación liviana para demo multiempresa.",
+      createdById: owner.id,
+      companies: {
+        create: [
+          { companyId: company.id, sortOrder: 1, joinedAt: new Date() },
+          { companyId: secondaryCompany.id, sortOrder: 2, joinedAt: new Date() },
+        ],
+      },
+      memberships: {
+        create: [
+          { userId: owner.id, role: "ADMIN" },
+          { userId: viewer.id, role: "VIEWER" },
+        ],
+      },
+    },
   });
 
   const fiscalConfig = await prisma.fiscalConfig.create({

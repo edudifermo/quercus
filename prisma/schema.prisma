@@ -14,6 +14,12 @@ enum MembershipRole {
   VIEWER
 }
 
+enum ConsolidationAccessRole {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
 enum ItemType {
   RAW_MATERIAL
   FINISHED_GOOD
@@ -304,6 +310,7 @@ model Company {
   commercialLedgerEntries       CommercialLedgerEntry[]
   commercialDocumentLines       CommercialDocumentLine[]
   commercialReceiptApplications CommercialReceiptApplication[]
+  consolidationMemberships      ConsolidationGroupCompany[]
 }
 
 model User {
@@ -320,6 +327,56 @@ model User {
   fiscalLogs          FiscalProcessingLog[]
   commercialDocuments CommercialDocument[]    @relation("commercial_document_created_by")
   commercialReceipts  CommercialReceipt[]     @relation("commercial_receipt_created_by")
+  consolidationMemberships ConsolidationGroupMembership[]
+  createdConsolidationGroups ConsolidationGroup[] @relation("consolidation_group_created_by")
+}
+
+model ConsolidationGroup {
+  id               String                        @id @default(cuid())
+  name             String
+  code             String?
+  description      String?
+  isActive         Boolean                       @default(true)
+  createdById      String?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  createdBy        User?                         @relation("consolidation_group_created_by", fields: [createdById], references: [id], onDelete: SetNull)
+  companies        ConsolidationGroupCompany[]
+  memberships      ConsolidationGroupMembership[]
+
+  @@unique([code])
+  @@index([isActive])
+}
+
+model ConsolidationGroupCompany {
+  id                   String              @id @default(cuid())
+  consolidationGroupId String
+  companyId            String
+  isActive             Boolean             @default(true)
+  sortOrder            Int?
+  joinedAt             DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  consolidationGroup   ConsolidationGroup  @relation(fields: [consolidationGroupId], references: [id], onDelete: Cascade)
+  company              Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([consolidationGroupId, companyId])
+  @@index([companyId, isActive])
+}
+
+model ConsolidationGroupMembership {
+  id                   String                  @id @default(cuid())
+  consolidationGroupId String
+  userId               String
+  role                 ConsolidationAccessRole @default(VIEWER)
+  isActive             Boolean                 @default(true)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  consolidationGroup   ConsolidationGroup      @relation(fields: [consolidationGroupId], references: [id], onDelete: Cascade)
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([consolidationGroupId, userId])
+  @@index([userId, isActive])
 }
 
 model Membership {
