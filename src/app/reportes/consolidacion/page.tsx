@@ -1,5 +1,6 @@
-import Link from "next/link";
-import { getAppContext } from "@/modules/production/auth";
+import { AppShell } from "@/components/app-shell/app-shell";
+import { withTenantQuery } from "@/components/app-shell/query";
+import { getAppContext, listAvailableContexts } from "@/modules/production/auth";
 import {
   getConsolidatedCommercialSummary,
   getConsolidatedCompanyBreakdown,
@@ -18,21 +19,27 @@ export default async function ConsolidationReportsPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const context = await getAppContext(resolvedSearchParams);
-  const groups = await getConsolidationGroupsForUser(context.user.id);
+  const [contextOptions, groups] = await Promise.all([
+    listAvailableContexts(),
+    getConsolidationGroupsForUser(context.user.id),
+  ]);
 
   if (groups.length === 0) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 bg-slate-100 px-6 py-8">
+      <AppShell
+        context={context}
+        contextOptions={contextOptions}
+        activeModule="reportes"
+        title="Reporte de consolidación"
+        subtitle="Vista consolidada no disponible"
+        breadcrumbs={[{ label: "Quercus", href: "/dashboard" }, { label: "Reportes", href: "/reportes" }, { label: "Consolidación" }]}
+      >
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900">Consolidación multiempresa</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="text-sm text-slate-600">
             El usuario actual no tiene grupos de consolidación activos. Configurá miembros y empresas del grupo para habilitar esta vista.
           </p>
-          <Link href={`/?company=${context.company.slug}&user=${context.user.email}`} className="mt-4 inline-block text-sm font-semibold text-slate-700 underline">
-            Volver al tablero
-          </Link>
         </section>
-      </main>
+      </AppShell>
     );
   }
 
@@ -68,25 +75,18 @@ export default async function ConsolidationReportsPage({
   ]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 bg-slate-100 px-6 py-8">
+    <AppShell
+      context={context}
+      contextOptions={contextOptions}
+      consolidationGroups={groups}
+      activeGroupId={parsedFilters.consolidationGroupId}
+      activeModule="reportes"
+      title="Reporte de consolidación"
+      subtitle="Liquidez, deuda, saldo clientes y ventas para mini holdings"
+      breadcrumbs={[{ label: "Quercus", href: "/dashboard" }, { label: "Reportes", href: "/reportes" }, { label: "Consolidación" }]}
+    >
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Consolidación base</p>
-            <h1 className="mt-1 text-3xl font-semibold text-slate-900">Vista consolidada multiempresa</h1>
-            <p className="mt-2 text-sm text-slate-600">Usuario: <strong>{context.user.name}</strong> · Grupo activo: <strong>{groups.find((group) => group.id === parsedFilters.consolidationGroupId)?.name}</strong></p>
-          </div>
-          <div className="flex flex-wrap gap-2 text-sm">
-            <Link href={`/?company=${context.company.slug}&user=${context.user.email}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-              Producción
-            </Link>
-            <Link href={`/tesoreria?company=${context.company.slug}&user=${context.user.email}`} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
-              Tesorería
-            </Link>
-          </div>
-        </div>
-
-        <form method="get" className="mt-5 grid gap-3 md:grid-cols-5">
+        <form method="get" className="grid gap-3 md:grid-cols-5">
           <input type="hidden" name="company" value={context.company.slug} />
           <input type="hidden" name="user" value={context.user.email} />
           <label className="space-y-1 text-sm text-slate-700">
@@ -131,7 +131,7 @@ export default async function ConsolidationReportsPage({
         </form>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Liquidez consolidada" value={formatMoney(treasury.consolidated.totalLiquidity, parsedFilters.currency ?? "ARS")} />
         <MetricCard label="Deuda proveedores" value={formatMoney(payables.consolidated.supplierDebt, parsedFilters.currency ?? "ARS")} />
         <MetricCard label="Saldo clientes" value={formatMoney(receivables.consolidated.clientCurrentAccount, parsedFilters.currency ?? "ARS")} />
@@ -139,7 +139,7 @@ export default async function ConsolidationReportsPage({
         <MetricCard label="Cobranzas período" value={formatMoney(commercial.consolidated.collectionsInPeriod, parsedFilters.currency ?? "ARS")} />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">Resumen por empresa dentro del grupo</h2>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -170,7 +170,16 @@ export default async function ConsolidationReportsPage({
           </table>
         </div>
       </section>
-    </main>
+
+      <section className="mt-6">
+        <a
+          href={withTenantQuery("/reportes", { company: context.company.slug, user: context.user.email, group: parsedFilters.consolidationGroupId })}
+          className="text-sm font-semibold text-slate-700 underline"
+        >
+          Volver al centro de reportes
+        </a>
+      </section>
+    </AppShell>
   );
 }
 

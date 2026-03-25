@@ -1,29 +1,33 @@
-import Link from "next/link";
-import { getAppContext } from "@/modules/production/auth";
+import { AppShell } from "@/components/app-shell/app-shell";
+import { getConsolidationGroupsForUser } from "@/modules/consolidation/service";
+import { getAppContext, listAvailableContexts } from "@/modules/production/auth";
 import { getProductionDashboard } from "@/modules/production/data";
 import { formatQty } from "@/modules/production/utils";
 
 export default async function ProductionReportsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ company?: string; user?: string }>;
+  searchParams?: Promise<{ company?: string; user?: string; group?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const context = await getAppContext(resolvedSearchParams);
-  const dashboard = await getProductionDashboard(context.company.id);
+  const [contextOptions, dashboard, consolidationGroups] = await Promise.all([
+    listAvailableContexts(),
+    getProductionDashboard(context.company.id),
+    getConsolidationGroupsForUser(context.user.id),
+  ]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 bg-slate-100 px-6 py-8">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Reportes mínimos</p>
-          <h1 className="text-3xl font-semibold text-slate-900">Producción resumida</h1>
-        </div>
-        <Link href={`/?company=${context.company.slug}&user=${context.user.email}`} className="text-sm font-semibold text-slate-700 underline">
-          Volver al tablero
-        </Link>
-      </div>
-
+    <AppShell
+      context={context}
+      contextOptions={contextOptions}
+      consolidationGroups={consolidationGroups}
+      activeGroupId={resolvedSearchParams?.group}
+      activeModule="reportes"
+      title="Reporte de Producción"
+      subtitle="Indicadores mínimos operativos por empresa activa"
+      breadcrumbs={[{ label: "Quercus", href: "/dashboard" }, { label: "Reportes", href: "/reportes" }, { label: "Producción" }]}
+    >
       <section className="grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Órdenes por estado</h2>
@@ -49,7 +53,7 @@ export default async function ProductionReportsPage({
         </article>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="mt-6 grid gap-6 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Consumos teóricos vs reales</h2>
           <div className="mt-4 overflow-x-auto">
@@ -94,6 +98,6 @@ export default async function ProductionReportsPage({
           </div>
         </article>
       </section>
-    </main>
+    </AppShell>
   );
 }

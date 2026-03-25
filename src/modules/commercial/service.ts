@@ -406,3 +406,123 @@ export async function getCommercialCurrentAccount(companyId: string, clientId: s
     balance: Number(client.currentBalance),
   };
 }
+
+
+type CtaCteVoucher = {
+  idRegistro: string;
+  companyId: string;
+  clientId: string;
+  fecha: Date;
+  tipoCbte: "FC" | "NC" | "ND" | "RC" | "RT";
+  letra: string;
+  puntoVenta: string;
+  nroCbte: string;
+  importe: number;
+  estado: "OPERATIVO" | "CERRADO";
+  tipoCbteImput: string;
+  letraImput: string;
+  puntoVentaImput: string;
+  nroCbteImput: string;
+  referenciaContable?: string;
+};
+
+function parseVoucherIdentity(documentNumber: string, fallbackType: CtaCteVoucher["tipoCbte"]) {
+  const [tipoCbte = fallbackType, letra = "X", puntoVenta = "0", nroCbte = documentNumber] = documentNumber.split("-");
+  return { tipoCbte: tipoCbte as CtaCteVoucher["tipoCbte"], letra, puntoVenta, nroCbte };
+}
+
+function mapDocumentTypeToVoucherType(type: string): CtaCteVoucher["tipoCbte"] {
+  if (type.includes("CREDIT")) return "NC";
+  if (type.includes("DEBIT")) return "ND";
+  if (type.includes("DELIVERY")) return "RT";
+  return "FC";
+}
+
+export async function getCommercialCurrentAccountVoucherModel(companyId: string, clientId: string) {
+  const [client, documents, receipts, applications] = await Promise.all([
+    prisma.client.findFirst({ where: { id: clientId, companyId }, select: { id: true, legalName: true, defaultCurrency: true } }),
+    prisma.commercialDocument.findMany({ where: { companyId, clientId }, orderBy: [{ issueDate: "asc" }, { createdAt: "asc" }] }),
+    prisma.commercialReceipt.findMany({ where: { companyId, clientId }, orderBy: [{ receiptDate: "asc" }, { createdAt: "asc" }] }),
+    prisma.commercialReceiptApplication.findMany({
+      where: { companyId, receipt: { clientId }, document: { clientId } },
+      include: { receipt: true, document: true },
+      orderBy: [{ createdAt: "asc" }],
+    }),
+  ]);
+
+  if (!client) throw new Error("No se encontró el cliente para consultar la cuenta corriente.");
+
+  const rows: CtaCteVoucher[] = documents.map((doc) => {
+    const identity = parseVoucherIdentity(doc.documentNumber, mapDocumentTypeToVoucherType(doc.documentType));
+    return {
+      idRegistro: doc.id,
+      companyId,
+      clientId,
+      fecha: doc.issueDate,
+      tipoCbte: identity.tipoCbte,
+      letra: identity.letra,
+      puntoVenta: identity.puntoVenta,
+      nroCbte: identity.nroCbte,
+      importe: Number(doc.totalAmount),
+      estado: Number(doc.openAmount) === 0 ? "CERRADO" : "OPERATIVO",
+      tipoCbteImput: identity.tipoCbte,
+      letraImput: identity.letra,
+      puntoVentaImput: identity.puntoVenta,
+      nroCbteImput: identity.nroCbte,
+      referenciaContable: doc.accountingEntryId ?? undefined,
+    };
+  });
+
+  const docIdentityById = new Map(documents.map((doc) => [doc.id, parseVoucherIdentity(doc.documentNumber, mapDocumentTypeToVoucherType(doc.documentType))]));
+
+  receipts.forEach((receipt) => {
+    const identity = parseVoucherIdentity(receipt.receiptNumber, "RC");
+    const appliedRows = applications.filter((app) => app.commercialReceiptId === receipt.id);
+
+    if (!appliedRows.length) {
+      rows.push({
+        idRegistro: receipt.id,
+        companyId,
+        clientId,
+        fecha: receipt.receiptDate,
+        tipoCbte: "RC",
+        letra: identity.letra,
+        puntoVenta: identity.puntoVenta,
+        nroCbte: identity.nroCbte,
+        importe: -Number(receipt.totalAmount),
+        estado: Number(receipt.unappliedAmount) === 0 ? "CERRADO" : "OPERATIVO",
+        tipoCbteImput: "RC",
+        letraImput: identity.letra,
+        puntoVentaImput: identity.puntoVenta,
+        nroCbteImput: identity.nroCbte,
+        referenciaContable: receipt.accountingEntryId ?? undefined,
+      });
+      return;
+    }
+
+    appliedRows.forEach((app) => {
+      const targetIdentity = docIdentityById.get(app.commercialDocumentId) ?? identity;
+      rows.push({
+        idRegistro: `${receipt.id}:${app.id}`,
+        companyId,
+        clientId,
+        fecha: receipt.receiptDate,
+        tipoCbte: "RC",
+        letra: identity.letra,
+        puntoVenta: identity.puntoVenta,
+        nroCbte: identity.nroCbte,
+        importe: -Number(app.appliedAmount),
+        estado: Number(receipt.unappliedAmount) === 0 ? "CERRADO" : "OPERATIVO",
+        tipoCbteImput: targetIdentity.tipoCbte,
+        letraImput: targetIdentity.letra,
+        puntoVentaImput: targetIdentity.puntoVenta,
+        nroCbteImput: targetIdentity.nroCbte,
+        referenciaContable: receipt.accountingEntryId ?? undefined,
+      });
+    });
+  });
+
+  const balance = rows.reduce((sum, row) => sum + row.importe, 0);
+
+  return { client, rows, balance };
+}

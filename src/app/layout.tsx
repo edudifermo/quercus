@@ -1,20 +1,18 @@
+//src/app/layout.tsx
+
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Quercus · Operación",
-  description: "Módulos operativos de producción, tesorería, pagos a proveedores y trazabilidad documental.",
+  title: "Quercus ERP",
+  description: "ERP multiempresa para comercial, operaciones, tesorería, contabilidad y consolidación.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="es">
-      <body className="min-h-screen bg-slate-100 text-slate-950 antialiased">{children}</body>
+      <body className="min-h-screen bg-[#eef2ee] text-slate-950 antialiased">{children}</body>
     </html>
   );
 }
